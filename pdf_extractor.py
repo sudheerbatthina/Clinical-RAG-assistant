@@ -1,6 +1,7 @@
 # NOTE: pdfplumber mixes multi-column headers on page 1.
 # Acceptable for single-column body text; revisit if processing
-# multi-column documents in production.from pathlib import Path
+# multi-column documents in production.
+from pathlib import Path
 
 from pypdf import PdfReader
 
