@@ -1,56 +1,38 @@
-# NOTE: pdfplumber mixes multi-column headers on page 1.
-# Acceptable for single-column body text; revisit if processing
-# multi-column documents in production.
 from pathlib import Path
 
-from pypdf import PdfReader
-
 import pdfplumber
+from unstructured.partition.pdf import partition_pdf
+
 
 def extract_text_from_pdf(pdf_path: Path) -> list[dict]:
-    """Extract text from a PDF file, page by page.
+    """Extract text using unstructured, tables using pdfplumber."""
+    # Prose extraction via unstructured (better column handling)
+    elements = partition_pdf(filename=str(pdf_path), strategy="fast")
 
-    Args:
-        pdf_path: Path to the PDF file to read.
+    pages = {}
+    for el in elements:
+        page_num = el.metadata.page_number or 1
+        if page_num not in pages:
+            pages[page_num] = {"page_number": page_num, "text": "", "tables": []}
+        if el.category != "Table":
+            pages[page_num]["text"] += str(el) + "\n"
 
-    Returns:
-        A list of dictionaries, one per page, each with keys:
-        - 'page number' (1-indexed)
-        - 'text' (the extracted text as string)
-        - 'tables' (a list of tables, where each table is a list of rows, and each row is a list of cell values)
-    """
-        
-    #reader = PdfReader(pdf_path)
-    extracted_pages = []
+    # Table extraction via pdfplumber (reliable table detection)
     with pdfplumber.open(pdf_path) as pdf:
-        for page_number, page in enumerate(pdf.pages, start=1):
-            extracted_pages.append({
-                "page_number": page_number,
-                "text": page.extract_text() or "",
-                "tables": page.extract_tables(),
-        })
-    return extracted_pages
+        for i, page in enumerate(pdf.pages, start=1):
+            if i not in pages:
+                pages[i] = {"page_number": i, "text": "", "tables": []}
+            pages[i]["tables"] = page.extract_tables()
+
+    return [pages[k] for k in sorted(pages.keys())]
 
 
 if __name__ == "__main__":
     pdf_path = Path("data/cms_hipaa.pdf")
-    pages = extract_text_from_pdf(pdf_path)
+    result = extract_text_from_pdf(pdf_path)
 
-    print(f"Extracted {len(pages)} pages from {pdf_path.name}")
-    print()
-
-    print("--- Page 1 text preview ---")
-    print(pages[0]["text"][:500])
-    print()
-
-    print("--- Page 12 text preview ---")
-    print(pages[11]["text"][:500])
-    print()
-
-    print(f"--- Page 12 has {len(pages[11]['tables'])} table(s) detected ---")
-    if pages[11]["tables"]:
-        first_table = pages[11]["tables"][0]
-        print(f"First table has {len(first_table)} rows")
-        print("First 3 rows:")
-        for row in first_table[:3]:
-            print(row)
+    print(f"Extracted {len(result)} pages")
+    print(f"Page 1 text preview:\n{result[0]['text'][:300]}\n")
+    print(f"Page 12 tables: {len(result[11]['tables'])}")
+    if result[11]["tables"]:
+        print(f"First table rows: {len(result[11]['tables'][0])}")
