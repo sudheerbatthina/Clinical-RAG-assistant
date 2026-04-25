@@ -7,15 +7,14 @@ from unstructured.partition.pdf import partition_pdf
 def extract_text_from_pdf(pdf_path: Path) -> list[dict]:
     """Extract text using unstructured, tables using pdfplumber."""
     # Prose extraction via unstructured (better column handling)
-    elements = partition_pdf(filename=str(pdf_path), strategy="fast")
+    elements = partition_pdf(filename=str(pdf_path), strategy="hi_res")
 
     pages = {}
     for el in elements:
         page_num = el.metadata.page_number or 1
         if page_num not in pages:
             pages[page_num] = {"page_number": page_num, "text": "", "tables": []}
-        if el.category != "Table":
-            pages[page_num]["text"] += str(el) + "\n"
+        pages[page_num]["text"] += str(el) + "\n"
 
     # Table extraction via pdfplumber (reliable table detection)
     with pdfplumber.open(pdf_path) as pdf:
