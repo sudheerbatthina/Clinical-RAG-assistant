@@ -4,6 +4,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from pdf_extractor import extract_text_from_pdf
 
+from config import CHUNK_SIZE, CHUNK_OVERLAP
 
 def table_to_markdown(table: list[list[str]]) -> str:
     """Convert a pdfplumber table (list of rows) into a Markdown table string.
@@ -49,8 +50,8 @@ def chunk_pages(pages: list[dict], source_name: str) -> list[dict]:
         - content: the actual string the LLM will see
     """
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=100,
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
         separators=["\n\n", "\n", ". ", " ", ""],
     )
 

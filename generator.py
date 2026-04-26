@@ -1,16 +1,15 @@
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from config import CHAT_MODEL, TOP_K
 from retriever import retrieve
 
 load_dotenv()
 
-CHAT_MODEL = "gpt-4o-mini"
-
 SYSTEM_PROMPT = """You are a helpful assistant that answers questions about healthcare \
 policy documents. Answer ONLY using the information in the provided context. \
 If the context does not contain enough information to answer the question, say so explicitly. \
-Always cite the source page number(s) you used in your answer, in the format (page X)."""
+Always cite the source document name and page number(s) you used in your answer."""
 
 
 def build_context(hits: list[dict]) -> str:
@@ -23,22 +22,17 @@ def build_context(hits: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
-def answer_question(question: str, top_k: int = 5) -> dict:
+def answer_question(question: str, top_k: int = TOP_K) -> dict:
     """Run the full RAG pipeline: retrieve + generate."""
     hits = retrieve(question, top_k=top_k)
     context = build_context(hits)
-
-    user_message = f"""Context:
-{context}
-
-Question: {question}"""
 
     client = OpenAI()
     response = client.chat.completions.create(
         model=CHAT_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
         ],
         temperature=0,
     )
@@ -47,18 +41,7 @@ Question: {question}"""
         "question": question,
         "answer": response.choices[0].message.content,
         "sources": [
-            {"page": h["metadata"]["page_number"], "chunk_id": h["chunk_id"]}
+            {"source": h["metadata"]["source"], "page": h["metadata"]["page_number"], "chunk_id": h["chunk_id"]}
             for h in hits
         ],
     }
-
-
-if __name__ == "__main__":
-    question = "Who si sudheer?"
-    result = answer_question(question)
-
-    print(f"Q: {result['question']}\n")
-    print(f"A: {result['answer']}\n")
-    print("Sources used:")
-    for src in result["sources"]:
-        print(f"  - page {src['page']} ({src['chunk_id']})")

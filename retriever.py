@@ -2,14 +2,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import chromadb
 
-from vector_store import CHROMA_DIR, COLLECTION_NAME
+from config import CHROMA_DIR, COLLECTION_NAME, EMBEDDING_MODEL, TOP_K
 
 load_dotenv()
 
-EMBEDDING_MODEL = "text-embedding-3-small"
 
-
-def retrieve(query: str, top_k: int = 5) -> list[dict]:
+def retrieve(query: str, top_k: int = TOP_K) -> list[dict]:
     """Find the top_k most relevant chunks for a query."""
     client = OpenAI()
     query_embedding = client.embeddings.create(
@@ -25,15 +23,15 @@ def retrieve(query: str, top_k: int = 5) -> list[dict]:
         n_results=top_k,
     )
 
-    hits = []
-    for i in range(len(results["ids"][0])):
-        hits.append({
+    return [
+        {
             "chunk_id": results["ids"][0][i],
             "content": results["documents"][0][i],
             "metadata": results["metadatas"][0][i],
             "distance": results["distances"][0][i],
-        })
-    return hits
+        }
+        for i in range(len(results["ids"][0]))
+    ]
 
 
 if __name__ == "__main__":
