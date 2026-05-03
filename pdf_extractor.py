@@ -14,7 +14,12 @@ def extract_text_from_pdf(pdf_path: Path) -> list[dict]:
         page_num = el.metadata.page_number or 1
         if page_num not in pages:
             pages[page_num] = {"page_number": page_num, "text": "", "tables": []}
-        pages[page_num]["text"] += str(el) + "\n"
+        try:
+            text = el.text or ""
+        except AttributeError:
+            text = ""
+        if text:
+            pages[page_num]["text"] += text + "\n"
 
     # Table extraction via pdfplumber (reliable table detection)
     with pdfplumber.open(pdf_path) as pdf:
