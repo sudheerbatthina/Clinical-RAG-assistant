@@ -1,6 +1,9 @@
 import sys
+import logging
 
 from generator import answer_question
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 
 def main():
@@ -15,6 +18,9 @@ def main():
     print("Sources:")
     for src in result["sources"]:
         print(f"  - {src['source']}, page {src['page']}")
+
+    if result.get("from_cache"):
+        print("\n(served from cache)")
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ distro==1.9.0
 durationpy==0.10
 emoji==2.15.0
 en_core_web_sm==3.8.0
+fastapi==0.136.1
 filelock==3.25.2
 filetype==1.2.0
 flatbuffers==25.12.19
@@ -138,6 +139,7 @@ spacy==3.8.14
 spacy-legacy==3.0.12
 spacy-loggers==1.0.5
 srsly==2.5.3
+starlette==1.0.0
 sympy==1.14.0
 tenacity==9.1.4
 thinc==8.3.13

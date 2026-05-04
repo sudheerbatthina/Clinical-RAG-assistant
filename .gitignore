@@ -23,3 +23,9 @@ Thumbs.db
 data/
 
 chroma_db/
+
+# Cache
+.cache/
+
+# Eval results
+eval_results.json

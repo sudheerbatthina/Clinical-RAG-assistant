@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -7,6 +6,7 @@ load_dotenv()
 # Paths
 DATA_DIR = Path("data")
 CHROMA_DIR = "chroma_db"
+CACHE_DIR = Path(".cache")
 
 # Collection
 COLLECTION_NAME = "rag_chunks"
@@ -21,3 +21,6 @@ CHUNK_OVERLAP = 100
 
 # Retrieval
 TOP_K = 5
+
+# Embedding batching
+EMBEDDING_BATCH_SIZE = 100
