@@ -1,116 +1,192 @@
-# Clinical RAG Assistant
+# Healthcare RAG Assistant
 
-A Retrieval-Augmented Generation (RAG) pipeline for querying healthcare policy documents. It extracts text and tables from PDFs, embeds them with OpenAI, stores them in ChromaDB, and answers natural-language questions with cited sources.
+A production-ready Retrieval-Augmented Generation (RAG) system for healthcare policy documents. Extracts, chunks, embeds, and retrieves document content, then generates grounded answers with source citations using OpenAI.
 
-## Pipeline
+---
+
+## Features
+
+| Feature | Detail |
+|---|---|
+| **PDF extraction** | `unstructured` (hi-res) for prose, `pdfplumber` for tables |
+| **Section-aware chunking** | Groups content by Title/Header boundaries; large sections split at paragraphs |
+| **Embeddings** | OpenAI `text-embedding-3-small` with file + Redis cache |
+| **Vector store** | ChromaDB (persistent) with upsert |
+| **Reranking** | Optional Cohere `rerank-english-v3.0` (falls back to vector scores) |
+| **Answer generation** | OpenAI `gpt-4o-mini` with grounded system prompt |
+| **API** | FastAPI with `X-API-Key` authentication and access-level filtering |
+| **Chat UI** | Streamlit with citations and latency display |
+| **Monitoring** | MLflow experiment tracking — params, metrics, per-trace artifacts |
+| **Caching** | Redis (24 h TTL on answers) with file-based fallback |
+| **Access control** | `user_group` on requests filters chunks by `access_level` metadata |
+| **CI** | GitHub Actions: ruff lint + smoke tests (no API keys needed) |
+
+---
+
+## Project layout
 
 ```
-PDF → pdf_extractor → chunker → embedder → vector_store → retriever → generator
+rag_assistant/        # Core package
+  config.py           # All settings, loaded from .env
+  cache.py            # Redis (24 h TTL) + file fallback cache
+  pdf_extractor.py    # PDF -> elements + tables
+  chunker.py          # Section-aware chunking
+  embedder.py         # Batched OpenAI embeddings
+  vector_store.py     # ChromaDB ingestion
+  retriever.py        # Vector search + optional Cohere rerank + access control
+  generator.py        # Full RAG pipeline
+api.py                # FastAPI service (X-API-Key authenticated)
+app.py                # Streamlit chat UI
+query.py              # CLI query tool
+evals.py              # Evaluation harness + MLflow logging
+scripts/
+  ci_test.py          # Standalone smoke tests (no API keys needed)
+.github/workflows/
+  ci.yml              # GitHub Actions: lint + smoke tests on every push/PR
+Dockerfile            # Multi-stage build for the FastAPI service
+docker-compose.yml    # API + Redis services
+.env.example          # Template for required environment variables
 ```
 
-| Step | File | What it does |
-|---|---|---|
-| Extract | `pdf_extractor.py` | Pulls text and tables from each page using `pdfplumber` |
-| Chunk | `chunker.py` | Splits prose with a recursive splitter; converts tables to Markdown blocks |
-| Embed | `embedder.py` | Batches all chunks through OpenAI `text-embedding-3-small` |
-| Store | `vector_store.py` | Persists embeddings + metadata to a local ChromaDB collection |
-| Retrieve | `retriever.py` | Embeds a query and returns the top-k nearest chunks |
-| Generate | `generator.py` | Sends retrieved context to `gpt-4o-mini` and returns a cited answer |
+---
 
 ## Setup
 
-### Prerequisites
-
-- Python 3.11+
-- An OpenAI API key
-
-### Install
+### 1. Create a virtual environment
 
 ```bash
+git clone <repo-url>
+cd rag-assistant
 python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+# Windows
+.\venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Configure
-
-Create a `.env` file in the project root:
-
-```
-OPENAI_API_KEY=sk-...
-```
-
-## Usage
-
-### 1. Add your PDF
-
-Place your PDF in the `data/` directory:
-
-```
-data/your_document.pdf
-```
-
-### 2. Run the ingestion pipeline
-
-Each script can be run standalone. Run them in order:
+### 2. Configure environment
 
 ```bash
-# Extract → chunk → embed → store
-python vector_store.py
+cp .env.example .env
+# Edit .env — at minimum set OPENAI_API_KEY
 ```
 
-Or step through individually to inspect intermediate output:
+### 3. Add documents and index
+
+Place PDF files in `data/`, then run:
 
 ```bash
-python pdf_extractor.py   # Preview extracted pages
-python chunker.py         # Preview chunks
-python embedder.py        # Preview embeddings
-python vector_store.py    # Build the ChromaDB collection
+python -m rag_assistant.vector_store
 ```
 
-> Update the `pdf_path` variable at the bottom of each script to point to your file.
+---
 
-### 3. Ask a question
+## Running each component
+
+### FastAPI service
 
 ```bash
-python generator.py
+uvicorn api:app --reload
+# Available at http://localhost:8000
 ```
 
-Edit the `question` variable in `generator.py` to ask your own questions. The answer will include page citations from the source document.
+All endpoints except `/health` require an `X-API-Key` header:
 
-**Example output:**
+```bash
+# Health check (public)
+curl http://localhost:8000/health
 
-```
-Q: What information must a CSR verify before releasing beneficiary information?
-
-A: A CSR must verify ... (page 4)
-
-Sources used:
-  - page 4 (cms_hipaa.pdf_p4_t0)
-  - page 7 (cms_hipaa.pdf_p7_t1)
-```
-
-## Project Structure
-
-```
-rag-assistant/
-├── data/               # PDF documents (git-ignored)
-├── chroma_db/          # Persistent vector store (git-ignored)
-├── pdf_extractor.py    # PDF → pages (text + tables)
-├── chunker.py          # Pages → retrieval-ready chunks
-├── embedder.py         # Chunks → OpenAI embeddings
-├── vector_store.py     # Embeddings → ChromaDB
-├── retriever.py        # Query → top-k chunks
-├── generator.py        # Question → cited answer
-└── requirements.txt
+# Query (authenticated)
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: dev-key-123" \
+  -d '{"question": "What is a business associate under HIPAA?", "user_group": "clinical"}'
 ```
 
-## Dependencies
+### Streamlit chat UI
 
-Key packages (see `requirements.txt` for pinned versions):
+```bash
+streamlit run app.py
+```
 
-- `pdfplumber` — layout-aware PDF extraction with table detection
-- `langchain-text-splitters` — recursive prose chunking
-- `openai` — embeddings (`text-embedding-3-small`) and chat (`gpt-4o-mini`)
-- `chromadb` — local persistent vector store
-- `python-dotenv` — API key management
+### CLI query tool
+
+```bash
+python query.py "What must a valid HIPAA authorization include?"
+```
+
+### Evaluations
+
+Full eval run (requires OpenAI key):
+```bash
+python evals.py
+```
+
+CI smoke tests only (no API keys needed):
+```bash
+python evals.py --ci
+# or equivalently
+python scripts/ci_test.py
+```
+
+View MLflow results after a full eval run:
+```bash
+mlflow ui --backend-store-uri mlruns
+# Open http://localhost:5000
+```
+
+---
+
+## Docker
+
+### API + Redis via Docker Compose
+
+```bash
+cp .env.example .env   # fill in OPENAI_API_KEY
+docker compose up --build
+# API at http://localhost:8000, Redis at localhost:6379
+```
+
+The `REDIS_URL` is automatically set to `redis://redis:6379/0` inside the compose network.
+
+### API standalone (file-cache fallback, no Redis)
+
+```bash
+docker build -t rag-api .
+docker run -p 8000:8000 \
+  -e OPENAI_API_KEY=sk-... \
+  -e API_KEYS=my-key \
+  -v $(pwd)/chroma_db:/app/chroma_db:ro \
+  -v $(pwd)/data:/app/data:ro \
+  rag-api
+```
+
+---
+
+## Access control
+
+Every chunk has an `access_level` metadata field. Pass `user_group` on `/query` to filter:
+
+| `user_group` | Sees |
+|---|---|
+| `public` | `public` chunks |
+| `clinical` | `public` + `clinical` |
+| `billing` | `public` + `billing` |
+| `admin` | all levels |
+| *(omitted)* | all levels |
+
+Group mappings are defined in `rag_assistant/config.py` (`GROUP_ACCESS_MAP`). All existing chunks default to `public`; set `access_level` in metadata at index time to restrict them.
+
+---
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `OPENAI_API_KEY` | Yes | — | OpenAI API key for embeddings + chat |
+| `API_KEYS` | Yes | `dev-key-123` | Comma-separated valid `X-API-Key` values |
+| `COHERE_API_KEY` | No | — | Enables Cohere reranking when set |
+| `REDIS_URL` | No | `redis://localhost:6379/0` | Redis connection URL |
+
+See [.env.example](.env.example) for the full annotated template.

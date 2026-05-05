@@ -29,3 +29,12 @@ chroma_db/
 
 # Eval results
 eval_results.json
+
+# MLflow tracking
+mlruns/
+
+# Redis persistence (if run locally outside Docker)
+dump.rdb
+
+# Env example is safe to commit; actual .env is not
+!.env.example

@@ -1,7 +1,7 @@
 import sys
 import logging
 
-from generator import answer_question
+from rag_assistant.generator import answer_question
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -21,6 +21,8 @@ def main():
 
     if result.get("from_cache"):
         print("\n(served from cache)")
+    elif result.get("latency_s") is not None:
+        print(f"\n(latency: {result['latency_s']}s | tokens: {result.get('token_count')})")
 
 
 if __name__ == "__main__":

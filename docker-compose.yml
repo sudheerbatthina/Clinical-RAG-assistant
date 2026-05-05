@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redis — optional caching layer
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # FastAPI RAG service
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override Redis URL to use the internal docker network hostname
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      # Mount pre-built vector store and raw data (read-only)
+      - ./chroma_db:/app/chroma_db:ro
+      - ./data:/app/data:ro
+      # Cache is read-write; prefer Redis but file fallback still works
+      - ./.cache:/app/.cache
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:

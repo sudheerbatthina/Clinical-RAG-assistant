@@ -1,0 +1,39 @@
+# Python / build artefacts
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Version control
+.git/
+.gitignore
+
+# Secrets — never bake into the image
+.env
+.env.local
+*.env
+
+# Runtime data — mounted as volumes instead
+chroma_db/
+data/
+.cache/
+mlruns/
+
+# Dev tooling
+.vscode/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Docs and scripts not needed in the image
+scripts/
+README.md
+*.md
+
+# Test / eval artefacts
+eval_results.json

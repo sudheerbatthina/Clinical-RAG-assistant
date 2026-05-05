@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint-and-test:
+    name: Lint + Smoke Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout
+      # -----------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Python setup with pip cache
+      # -----------------------------------------------------------------------
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # -----------------------------------------------------------------------
+      # 3. Install dependencies
+      #    We skip heavy system libraries (tesseract, poppler) since the CI
+      #    smoke tests never call partition_pdf or pdfplumber.
+      # -----------------------------------------------------------------------
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ruff
+          # Install project deps; ignore build errors for heavy native libs
+          pip install -r requirements.txt --no-deps 2>/dev/null || \
+            pip install \
+              python-dotenv \
+              openai \
+              chromadb \
+              langchain-text-splitters \
+              redis \
+              mlflow \
+              streamlit \
+              fastapi \
+              uvicorn \
+              pydantic \
+              cohere \
+              tenacity
+
+      # -----------------------------------------------------------------------
+      # 4. Lint with ruff
+      # -----------------------------------------------------------------------
+      - name: Lint (ruff)
+        run: |
+          ruff check rag_assistant/ api.py query.py app.py evals.py scripts/
+
+      # -----------------------------------------------------------------------
+      # 5. Smoke tests — no API keys required
+      # -----------------------------------------------------------------------
+      - name: Smoke tests (--ci)
+        env:
+          # Provide dummy values so imports don't fail on missing env vars
+          OPENAI_API_KEY: "sk-dummy"
+          COHERE_API_KEY: ""
+          API_KEYS: "ci-test-key"
+          REDIS_URL: "redis://localhost:6379/0"
+        run: |
+          python evals.py --ci
+
+      # -----------------------------------------------------------------------
+      # 6. Standalone CI script (same tests, different entry point)
+      # -----------------------------------------------------------------------
+      - name: Standalone CI script
+        env:
+          OPENAI_API_KEY: "sk-dummy"
+          COHERE_API_KEY: ""
+          API_KEYS: "ci-test-key"
+          REDIS_URL: "redis://localhost:6379/0"
+        run: |
+          python scripts/ci_test.py

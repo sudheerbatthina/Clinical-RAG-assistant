@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\scripts\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\.github\\\\workflows\" -Force)"
+    ]
+  }
+}
