@@ -10,15 +10,15 @@ Authentication:
 
 import logging
 
+import chromadb
 from fastapi import FastAPI, HTTPException, Security, Depends
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from rag_assistant.generator import answer_question
-from rag_assistant.config import API_KEYS
+from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME
 from rag_assistant.cache import cache_backend
-from rag_assistant.vector_store import index_all_pdfs
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -39,6 +39,9 @@ def _require_api_key(key: str | None = Security(_api_key_header)) -> str:
             detail="Invalid or missing X-API-Key header",
         )
     return key
+
+
+get_api_key = _require_api_key
 
 
 # ---------------------------------------------------------------------------
@@ -86,14 +89,13 @@ def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/index", dependencies=[Depends(_require_api_key)])
-def index():
-    """Re-index all PDFs in the data directory into the vector store."""
-    try:
-        collection = index_all_pdfs()
-        return {"status": "complete", "total_chunks": collection.count()}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+@app.post("/index")
+def index(api_key: str = Security(get_api_key)):
+    from rag_assistant.vector_store import index_all_pdfs
+    index_all_pdfs()
+    client = chromadb.PersistentClient(path=CHROMA_DIR)
+    collection = client.get_collection(name=COLLECTION_NAME)
+    return {"status": "complete", "total_chunks": collection.count()}
 
 
 @app.get("/health")
