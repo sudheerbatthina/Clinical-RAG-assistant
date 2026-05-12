@@ -15,8 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/deps -r requirements.txt
-# RUN python -m spacy download en_core_web_sm
-
 
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime image
