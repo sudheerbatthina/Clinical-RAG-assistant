@@ -42,6 +42,8 @@ COPY api.py .
 # create empty placeholders so the app can start without them.
 RUN mkdir -p data chroma_db .cache
 
+COPY data/ /app/data/
+
 EXPOSE 8000
 
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -29,7 +29,7 @@ def build_vector_store(chunks: list[dict]) -> chromadb.Collection:
     return collection
 
 
-def index_all_pdfs(data_dir: Path = DATA_DIR) -> None:
+def index_all_pdfs(data_dir: Path = DATA_DIR) -> chromadb.Collection:
     """Index every PDF in the data directory using section-aware chunking."""
     pdf_files = sorted(data_dir.glob("*.pdf"))
     if not pdf_files:
@@ -52,6 +52,7 @@ def index_all_pdfs(data_dir: Path = DATA_DIR) -> None:
     print("Storing in vector database...")
     collection = build_vector_store(all_chunks)
     print(f"Done. {collection.count()} chunks in '{COLLECTION_NAME}'")
+    return collection
 
 
 if __name__ == "__main__":

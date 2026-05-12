@@ -18,6 +18,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from rag_assistant.generator import answer_question
 from rag_assistant.config import API_KEYS
 from rag_assistant.cache import cache_backend
+from rag_assistant.vector_store import index_all_pdfs
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -81,6 +82,16 @@ def query(request: QueryRequest):
             user_group=request.user_group,
         )
         return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/index", dependencies=[Depends(_require_api_key)])
+def index():
+    """Re-index all PDFs in the data directory into the vector store."""
+    try:
+        collection = index_all_pdfs()
+        return {"status": "complete", "total_chunks": collection.count()}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
