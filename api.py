@@ -136,16 +136,20 @@ async def upload(file: UploadFile = File(...)):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}")
 
-    try:
-        from rag_assistant.vector_store import index_single_pdf
-        collection = index_single_pdf(dest)
-        return {
-            "status": "indexed",
-            "filename": file.filename,
-            "chunks_added": collection.count(),
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Indexing failed: {exc}")
+    import threading
+    def _bg_index():
+        try:
+            from rag_assistant.vector_store import index_single_pdf
+            collection = index_single_pdf(dest)
+            logger.info("Background upload index complete: %d chunks", collection.count())
+        except Exception as e:
+            logger.error("Background upload index failed: %s", e)
+    threading.Thread(target=_bg_index, daemon=True).start()
+    return {
+        "status": "upload_received_indexing_started",
+        "filename": file.filename,
+        "message": "Indexing running in background. Watch deploy logs."
+    }
 
 
 @app.post("/query", response_model=QueryResponse, dependencies=[Depends(_require_api_key)])
