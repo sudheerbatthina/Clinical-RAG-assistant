@@ -38,11 +38,8 @@ COPY --from=deps /deps /usr/local
 COPY rag_assistant/ ./rag_assistant/
 COPY api.py .
 
-# Data and vector store directories are mounted at runtime via volumes;
-# create empty placeholders so the app can start without them.
-RUN mkdir -p data chroma_db .cache
-
-COPY data/ /app/data/
+# Ensure runtime data directories exist; content is populated via /upload.
+RUN mkdir -p /app/data /app/chroma_db /app/.cache
 
 EXPOSE 8000
 

@@ -55,5 +55,23 @@ def index_all_pdfs(data_dir: Path = DATA_DIR) -> chromadb.Collection:
     return collection
 
 
+def index_single_pdf(pdf_path: Path) -> chromadb.Collection:
+    """Index a single PDF file into the vector store."""
+    print(f"Processing {pdf_path.name}...")
+    elements, tables_by_page = extract_elements_and_tables(pdf_path)
+    chunks = chunk_document(elements, tables_by_page, source_name=pdf_path.name)
+    text_chunks = sum(1 for c in chunks if c["chunk_type"] == "text")
+    table_chunks = sum(1 for c in chunks if c["chunk_type"] == "table")
+    print(f"  → {text_chunks} text chunks, {table_chunks} table chunks")
+
+    print(f"Embedding {len(chunks)} chunks...")
+    embed_chunks(chunks)
+
+    print("Storing in vector database...")
+    collection = build_vector_store(chunks)
+    print(f"Done. {collection.count()} total chunks in '{COLLECTION_NAME}'")
+    return collection
+
+
 if __name__ == "__main__":
     index_all_pdfs()
