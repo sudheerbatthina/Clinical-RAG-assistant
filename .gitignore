@@ -19,8 +19,7 @@ __pycache__/
 Thumbs.db
 .DS_Store
 
-# Project data files
-#data/
+
 
 chroma_db/
 
