@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\scripts\" -Force)",
-      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\.github\\\\workflows\" -Force)"
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\.github\\\\workflows\" -Force)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pip install --upgrade pip)",
+      "Bash(.venv\\\\Scripts\\\\pip.exe install *)"
     ]
   }
 }

@@ -35,10 +35,18 @@ def _check_index() -> None:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
         if collection.count() == 0:
-            logger.warning(
-                "No documents indexed. "
-                "Call POST /upload with a PDF file to add documents."
-            )
+            pdf_files = list(DATA_DIR.glob("*.pdf")) if DATA_DIR.exists() else []
+            if pdf_files:
+                logger.info("Vector store empty but %d PDF(s) found — auto-indexing...", len(pdf_files))
+                from rag_assistant.vector_store import index_all_pdfs
+                result = index_all_pdfs()
+                count = result.count() if result is not None else 0
+                logger.info("Auto-indexing complete: %d chunks indexed.", count)
+            else:
+                logger.warning(
+                    "No documents indexed. "
+                    "Call POST /upload to add PDFs or POST /index after placing files in data/."
+                )
         else:
             logger.info("Vector store ready: %d chunks in '%s'.", collection.count(), COLLECTION_NAME)
     except Exception as exc:
@@ -93,6 +101,18 @@ class QueryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+@app.post("/index", dependencies=[Depends(_require_api_key)])
+def index():
+    """Re-index all PDFs in the data/ directory and return the chunk count."""
+    try:
+        from rag_assistant.vector_store import index_all_pdfs
+        result = index_all_pdfs()
+        count = result.count() if result is not None else 0
+        return {"status": "complete", "chunks": count}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @app.post("/upload", dependencies=[Depends(_require_api_key)])
 async def upload(file: UploadFile = File(...)):

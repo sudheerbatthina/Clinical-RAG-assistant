@@ -6,7 +6,7 @@ load_dotenv()
 
 # Paths
 DATA_DIR = Path("data")
-CHROMA_DIR = "chroma_db"
+CHROMA_DIR = os.environ.get("CHROMA_DIR", "chroma_db")
 CACHE_DIR = Path(".cache")
 
 # Collection
