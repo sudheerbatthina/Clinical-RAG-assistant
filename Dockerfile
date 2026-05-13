@@ -38,10 +38,7 @@ COPY --from=deps /deps /usr/local
 COPY rag_assistant/ ./rag_assistant/
 COPY api.py .
 
-# Ensure runtime data directories exist; content is populated via /upload.
-RUN mkdir -p /app/data /app/chroma_db /app/.cache
-
-COPY data/ /app/data/
+RUN mkdir -p /app/storage/data /app/storage/chroma_db /app/.cache
 
 EXPOSE 8000
 

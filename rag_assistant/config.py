@@ -5,8 +5,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Paths
-DATA_DIR = Path("data")
-CHROMA_DIR = os.environ.get("CHROMA_DIR", "chroma_db")
+_STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "storage"))
+DATA_DIR = _STORAGE_DIR / "data"
+CHROMA_DIR = str(_STORAGE_DIR / "chroma_db")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+Path(CHROMA_DIR).mkdir(parents=True, exist_ok=True)
 CACHE_DIR = Path(".cache")
 
 # Collection
