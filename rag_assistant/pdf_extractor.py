@@ -9,7 +9,7 @@ def extract_text_from_pdf(pdf_path: Path) -> list[dict]:
 
     Returns a list of page dicts with keys: page_number, text, tables.
     """
-    elements = partition_pdf(filename=str(pdf_path), strategy="hi_res")
+    elements = partition_pdf(filename=str(pdf_path), strategy="fast")
 
     pages = {}
     for el in elements:
@@ -38,7 +38,7 @@ def extract_elements_and_tables(pdf_path: Path) -> tuple[list, dict]:
     elements: raw list from unstructured, each with .category, .text, .metadata.page_number
     tables_by_page: {page_num: [table_list]} from pdfplumber
     """
-    elements = partition_pdf(filename=str(pdf_path), strategy="hi_res")
+    elements = partition_pdf(filename=str(pdf_path), strategy="fast")
 
     tables_by_page: dict[int, list] = {}
     with pdfplumber.open(pdf_path) as pdf:

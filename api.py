@@ -38,10 +38,17 @@ def _check_index() -> None:
             pdf_files = list(DATA_DIR.glob("*.pdf")) if DATA_DIR.exists() else []
             if pdf_files:
                 logger.info("Vector store empty but %d PDF(s) found — auto-indexing...", len(pdf_files))
+                import threading
                 from rag_assistant.vector_store import index_all_pdfs
-                result = index_all_pdfs()
-                count = result.count() if result is not None else 0
-                logger.info("Auto-indexing complete: %d chunks indexed.", count)
+                def _bg_index():
+                    try:
+                        result = index_all_pdfs()
+                        count = result.count() if result is not None else 0
+                        logger.info("Auto-indexing complete: %d chunks indexed.", count)
+                    except Exception as e:
+                        logger.error("Auto-indexing failed: %s", e)
+                threading.Thread(target=_bg_index, daemon=True).start()
+                logger.info("Auto-indexing started in background.")
             else:
                 logger.warning(
                     "No documents indexed. "
