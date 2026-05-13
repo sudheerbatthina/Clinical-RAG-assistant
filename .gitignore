@@ -20,7 +20,7 @@ Thumbs.db
 .DS_Store
 
 # Project data files
-data/
+#data/
 
 chroma_db/
 
