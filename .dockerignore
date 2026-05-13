@@ -20,7 +20,6 @@ build/
 
 # Runtime data — mounted as volumes instead
 chroma_db/
-data/
 .cache/
 mlruns/
 
