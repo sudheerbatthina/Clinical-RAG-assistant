@@ -38,3 +38,5 @@ dump.rdb
 
 # Env example is safe to commit; actual .env is not
 !.env.example
+
+data/2024-emergency-response-guidebook.pdf
