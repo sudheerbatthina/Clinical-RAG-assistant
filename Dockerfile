@@ -37,6 +37,7 @@ COPY --from=deps /deps /usr/local
 # Copy application source (everything except what's in .dockerignore)
 COPY rag_assistant/ ./rag_assistant/
 COPY api.py .
+COPY frontend/ ./frontend/
 
 RUN mkdir -p /app/storage/data /app/storage/chroma_db /app/.cache
 
