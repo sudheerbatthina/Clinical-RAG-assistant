@@ -34,6 +34,7 @@ def answer_question(
     top_k: int = TOP_K,
     use_cache: bool = True,
     user_group: str | None = None,
+    session_id: str = "global",
 ) -> dict:
     """Run the full RAG pipeline with query rewriting and semantic caching.
 
@@ -42,6 +43,7 @@ def answer_question(
         top_k:      Number of chunks to retrieve.
         use_cache:  Whether to read/write the semantic cache.
         user_group: Access-control group forwarded to retriever.
+        session_id: Retrieval scope — "global" or a specific chat id.
 
     Returned dict keys:
         question, answer, sources, from_cache, latency_s, token_count
@@ -59,7 +61,7 @@ def answer_question(
     if rewritten != question:
         logger.info("Query rewritten: %r → %r", question, rewritten)
 
-    hits = retrieve(rewritten, top_k=top_k, user_group=user_group)
+    hits = retrieve(rewritten, top_k=top_k, user_group=user_group, session_id=session_id)
     context = build_context(hits)
 
     client = OpenAI()

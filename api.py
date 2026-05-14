@@ -10,6 +10,7 @@ Authentication:
 
 import json
 import logging
+import threading
 
 import chromadb
 from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File
@@ -19,7 +20,7 @@ from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from rag_assistant.generator import answer_question
-from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME, DATA_DIR
+from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME, DATA_DIR, STORAGE_DIR
 from rag_assistant.cache import cache_backend
 from rag_assistant.db import (
     init_db, create_chat, list_chats, get_chat, delete_chat,
@@ -38,6 +39,13 @@ app = FastAPI(title="Healthcare RAG Assistant")
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+
+    try:
+        from rag_assistant.vector_store import migrate_existing_chunks
+        migrate_existing_chunks()
+    except Exception as exc:
+        logger.warning("Chunk migration failed: %s", exc)
+
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
@@ -45,7 +53,6 @@ def _startup() -> None:
             pdf_files = list(DATA_DIR.glob("*.pdf")) if DATA_DIR.exists() else []
             if pdf_files:
                 logger.info("Vector store empty but %d PDF(s) found — auto-indexing...", len(pdf_files))
-                import threading
                 from rag_assistant.vector_store import index_all_pdfs
                 def _bg_index():
                     try:
@@ -59,7 +66,7 @@ def _startup() -> None:
             else:
                 logger.warning(
                     "No documents indexed. "
-                    "Call POST /upload to add PDFs or POST /index after placing files in data/."
+                    "Call POST /upload to add PDFs or POST /chats/{id}/upload for per-chat docs."
                 )
         else:
             logger.info("Vector store ready: %d chunks in '%s'.", collection.count(), COLLECTION_NAME)
@@ -141,11 +148,70 @@ def get_chat_detail(chat_id: str):
 
 @app.delete("/chats/{chat_id}", dependencies=[Depends(_require_api_key)])
 def remove_chat(chat_id: str):
-    """Delete a chat and all its messages."""
+    """Delete a chat, its messages, and all its session-scoped vectors."""
     if not get_chat(chat_id):
         raise HTTPException(status_code=404, detail="Chat not found")
     delete_chat(chat_id)
+    def _bg_delete():
+        try:
+            from rag_assistant.vector_store import delete_session_chunks
+            delete_session_chunks(chat_id)
+        except Exception as e:
+            logger.error("Failed to delete session chunks for %s: %s", chat_id, e)
+    threading.Thread(target=_bg_delete, daemon=True).start()
     return {"status": "deleted"}
+
+
+@app.post("/chats/{chat_id}/upload", dependencies=[Depends(_require_api_key)])
+async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
+    """Upload a PDF scoped to a specific chat session and index it in the background."""
+    if not get_chat(chat_id):
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+
+    session_dir = STORAGE_DIR / "sessions" / chat_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    dest = session_dir / file.filename
+
+    try:
+        contents = await file.read()
+        dest.write_bytes(contents)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}")
+
+    filename = file.filename
+    def _bg_index():
+        try:
+            from rag_assistant.vector_store import index_pdf_for_session
+            index_pdf_for_session(dest, session_id=chat_id)
+            logger.info("Session upload indexed: %s for chat %s", filename, chat_id)
+        except Exception as e:
+            logger.error("Session upload indexing failed: %s", e)
+    threading.Thread(target=_bg_index, daemon=True).start()
+
+    return {"status": "upload_received_indexing_started", "filename": filename}
+
+
+@app.get("/chats/{chat_id}/documents", dependencies=[Depends(_require_api_key)])
+def get_chat_documents(chat_id: str):
+    """Return unique sources and chunk counts for a specific chat session."""
+    if not get_chat(chat_id):
+        raise HTTPException(status_code=404, detail="Chat not found")
+    try:
+        client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = client.get_or_create_collection(name=COLLECTION_NAME)
+        results = collection.get(
+            where={"session_id": {"$eq": chat_id}},
+            include=["metadatas"],
+        )
+        counts: dict[str, int] = {}
+        for meta in results["metadatas"]:
+            src = meta.get("source", "unknown")
+            counts[src] = counts.get(src, 0) + 1
+        return [{"source": src, "chunk_count": cnt} for src, cnt in sorted(counts.items())]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +220,7 @@ def remove_chat(chat_id: str):
 
 @app.post("/index", dependencies=[Depends(_require_api_key)])
 def index():
-    """Re-index all PDFs in the data/ directory and return the chunk count."""
+    """Re-index all PDFs in the data/ directory into the global store."""
     try:
         from rag_assistant.vector_store import index_all_pdfs
         result = index_all_pdfs()
@@ -166,7 +232,7 @@ def index():
 
 @app.post("/upload", dependencies=[Depends(_require_api_key)])
 async def upload(file: UploadFile = File(...)):
-    """Upload a PDF, index it in the background, and return immediately."""
+    """Upload a PDF to the global store and index it in the background."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
@@ -179,7 +245,6 @@ async def upload(file: UploadFile = File(...)):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}")
 
-    import threading
     def _bg_index():
         try:
             from rag_assistant.vector_store import index_single_pdf
@@ -200,12 +265,15 @@ def query(request: QueryRequest):
     """Ask a question and get a grounded answer with citations.
 
     If chat_id is "new", a chat is created automatically.
-    If chat_id is provided, the exchange is persisted to that chat.
+    If chat_id is provided, the exchange is persisted to that chat and
+    retrieval is scoped to global + that session's documents.
     """
     active_chat_id = request.chat_id
     if active_chat_id == "new":
         chat = create_chat()
         active_chat_id = chat["id"]
+
+    session_id = active_chat_id if active_chat_id else "global"
 
     try:
         result = answer_question(
@@ -213,6 +281,7 @@ def query(request: QueryRequest):
             top_k=request.top_k,
             use_cache=request.use_cache,
             user_group=request.user_group,
+            session_id=session_id,
         )
         if active_chat_id:
             add_message(active_chat_id, "user", request.question)
@@ -226,13 +295,16 @@ def query(request: QueryRequest):
 
 @app.get("/documents")
 def documents():
-    """Return unique sources and their chunk counts. No auth required."""
+    """Return global (session_id='global') sources and chunk counts. No auth required."""
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
         if collection.count() == 0:
             return []
-        results = collection.get(include=["metadatas"])
+        results = collection.get(
+            where={"session_id": {"$eq": "global"}},
+            include=["metadatas"],
+        )
         counts: dict[str, int] = {}
         for meta in results["metadatas"]:
             src = meta.get("source", "unknown")

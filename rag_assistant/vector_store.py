@@ -8,7 +8,7 @@ from .embedder import embed_chunks
 from .pdf_extractor import extract_elements_and_tables
 
 
-def build_vector_store(chunks: list[dict]) -> chromadb.Collection:
+def build_vector_store(chunks: list[dict], session_id: str = "global") -> chromadb.Collection:
     """Store embedded chunks in a persistent Chroma collection using upsert."""
     client = chromadb.PersistentClient(path=CHROMA_DIR)
     collection = client.get_or_create_collection(name=COLLECTION_NAME)
@@ -22,6 +22,7 @@ def build_vector_store(chunks: list[dict]) -> chromadb.Collection:
                 "source": c["source"],
                 "page_number": c["page_number"],
                 "chunk_type": c["chunk_type"],
+                "session_id": session_id,
             }
             for c in chunks
         ],
@@ -50,13 +51,13 @@ def index_all_pdfs(data_dir: Path = DATA_DIR) -> chromadb.Collection:
     embed_chunks(all_chunks)
 
     print("Storing in vector database...")
-    collection = build_vector_store(all_chunks)
+    collection = build_vector_store(all_chunks, session_id="global")
     print(f"Done. {collection.count()} chunks in '{COLLECTION_NAME}'")
     return collection
 
 
 def index_single_pdf(pdf_path: Path) -> chromadb.Collection:
-    """Index a single PDF file into the vector store."""
+    """Index a single PDF file into the global vector store."""
     print(f"Processing {pdf_path.name}...")
     elements, tables_by_page = extract_elements_and_tables(pdf_path)
     chunks = chunk_document(elements, tables_by_page, source_name=pdf_path.name)
@@ -68,9 +69,48 @@ def index_single_pdf(pdf_path: Path) -> chromadb.Collection:
     embed_chunks(chunks)
 
     print("Storing in vector database...")
-    collection = build_vector_store(chunks)
+    collection = build_vector_store(chunks, session_id="global")
     print(f"Done. {collection.count()} total chunks in '{COLLECTION_NAME}'")
     return collection
+
+
+def index_pdf_for_session(pdf_path: Path, session_id: str) -> chromadb.Collection:
+    """Index a PDF scoped to a specific chat session."""
+    print(f"Processing {pdf_path.name} for session {session_id}...")
+    elements, tables_by_page = extract_elements_and_tables(pdf_path)
+    chunks = chunk_document(elements, tables_by_page, source_name=pdf_path.name)
+    for chunk in chunks:
+        chunk["chunk_id"] = f"{session_id}_{chunk['chunk_id']}"
+    embed_chunks(chunks)
+    collection = build_vector_store(chunks, session_id=session_id)
+    print(f"Done. {len(chunks)} chunks indexed for session {session_id}")
+    return collection
+
+
+def delete_session_chunks(session_id: str):
+    """Remove all vectors belonging to a specific chat session."""
+    client = chromadb.PersistentClient(path=CHROMA_DIR)
+    collection = client.get_or_create_collection(name=COLLECTION_NAME)
+    results = collection.get(where={"session_id": {"$eq": session_id}}, include=[])
+    if results["ids"]:
+        collection.delete(ids=results["ids"])
+        print(f"Deleted {len(results['ids'])} chunks for session {session_id}")
+
+
+def migrate_existing_chunks():
+    """Add session_id='global' to any chunks missing it (one-time migration)."""
+    client = chromadb.PersistentClient(path=CHROMA_DIR)
+    collection = client.get_or_create_collection(name=COLLECTION_NAME)
+    results = collection.get(include=["metadatas"])
+    ids_to_update = []
+    updated_metadatas = []
+    for i, meta in enumerate(results["metadatas"]):
+        if "session_id" not in meta:
+            ids_to_update.append(results["ids"][i])
+            updated_metadatas.append({**meta, "session_id": "global"})
+    if ids_to_update:
+        collection.update(ids=ids_to_update, metadatas=updated_metadatas)
+        print(f"Migrated {len(ids_to_update)} chunks to session_id='global'")
 
 
 if __name__ == "__main__":

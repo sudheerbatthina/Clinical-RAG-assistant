@@ -29,7 +29,7 @@ def _reranking_enabled() -> bool:
 def _allowed_levels(user_group: str | None) -> list[str]:
     """Return the access levels this group may see.
 
-    Unknown groups default to public-only.  None means no filtering (admin
+    Unknown groups default to public-only. None means no filtering (admin
     shortcut used internally during indexing).
     """
     if user_group is None:
@@ -41,6 +41,7 @@ def retrieve(
     query: str,
     top_k: int = TOP_K,
     user_group: str | None = None,
+    session_id: str = "global",
 ) -> list[dict]:
     """Find the most relevant chunks for a query.
 
@@ -48,12 +49,12 @@ def retrieve(
         query:      Natural-language question.
         top_k:      Final number of results to return.
         user_group: Access-control group (public/clinical/billing/admin/None).
-                    Chunks whose access_level is not in the group's allowed
-                    list are excluded before reranking.  None disables the
-                    filter (useful for internal/admin calls).
+        session_id: Scope retrieval to this session plus global chunks.
+                    "global" → only global chunks.
+                    Any other value → global + that session's chunks.
 
     If COHERE_API_KEY is set, retrieves RERANK_CANDIDATES from Chroma then
-    reranks with Cohere to return top_k.  Falls back to pure vector search
+    reranks with Cohere to return top_k. Falls back to pure vector search
     when the key is absent or cohere is not installed.
     """
     use_reranking = _reranking_enabled()
@@ -72,21 +73,35 @@ def retrieve(
     if n_candidates == 0:
         return []
 
-    # Build Chroma where-filter for access_level if user_group is specified
-    where: dict | None = None
+    # Build session_id filter
+    if session_id == "global":
+        session_where = {"session_id": {"$eq": "global"}}
+    else:
+        session_where = {"$or": [
+            {"session_id": {"$eq": "global"}},
+            {"session_id": {"$eq": session_id}},
+        ]}
+
+    # Build access_level filter (only when user_group is explicitly set)
+    access_where: dict | None = None
     if user_group is not None:
         allowed = _allowed_levels(user_group)
         if len(allowed) == 1:
-            where = {"access_level": {"$eq": allowed[0]}}
+            access_where = {"access_level": {"$eq": allowed[0]}}
         else:
-            where = {"access_level": {"$in": allowed}}
+            access_where = {"access_level": {"$in": allowed}}
+
+    # Combine filters
+    if access_where is not None:
+        where: dict = {"$and": [session_where, access_where]}
+    else:
+        where = session_where
 
     query_kwargs: dict = {
         "query_embeddings": [query_embedding],
         "n_results": n_candidates,
+        "where": where,
     }
-    if where is not None:
-        query_kwargs["where"] = where
 
     results = collection.query(**query_kwargs)
 
