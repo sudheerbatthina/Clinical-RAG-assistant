@@ -13,6 +13,7 @@ import logging
 import chromadb
 from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
@@ -167,7 +168,30 @@ def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.get("/documents")
+def documents():
+    """Return unique sources and their chunk counts from the vector store. No auth required."""
+    try:
+        client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = client.get_or_create_collection(name=COLLECTION_NAME)
+        total = collection.count()
+        if total == 0:
+            return []
+        results = collection.get(include=["metadatas"])
+        counts: dict[str, int] = {}
+        for meta in results["metadatas"]:
+            src = meta.get("source", "unknown")
+            counts[src] = counts.get(src, 0) + 1
+        return [{"source": src, "chunk_count": cnt} for src, cnt in sorted(counts.items())]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.get("/health")
 def health():
     """Public health-check — no authentication required."""
     return {"status": "ok", "cache_backend": cache_backend()}
+
+
+# Mount frontend AFTER all API routes so /api paths take priority
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
