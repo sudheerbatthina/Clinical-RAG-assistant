@@ -6,7 +6,8 @@ from openai import OpenAI
 
 from .config import CHAT_MODEL, TOP_K
 from .retriever import retrieve
-from .cache import get_cached_answer, save_cached_answer
+from .query_rewriter import rewrite_query
+from .semantic_cache import get_semantic_cache, save_semantic_cache
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -34,27 +35,31 @@ def answer_question(
     use_cache: bool = True,
     user_group: str | None = None,
 ) -> dict:
-    """Run the full RAG pipeline with optional answer caching.
+    """Run the full RAG pipeline with query rewriting and semantic caching.
 
     Args:
         question:   The user's natural-language question.
         top_k:      Number of chunks to retrieve.
-        use_cache:  Whether to read/write the answer cache.
+        use_cache:  Whether to read/write the semantic cache.
         user_group: Access-control group forwarded to retriever.
 
     Returned dict keys:
         question, answer, sources, from_cache, latency_s, token_count
     """
     if use_cache:
-        cached = get_cached_answer(question)
+        cached = get_semantic_cache(question)
         if cached:
-            logger.info("Cache hit for question")
+            logger.info("Semantic cache hit for question")
             cached["from_cache"] = True
             cached.setdefault("latency_s", None)
             cached.setdefault("token_count", None)
             return cached
 
-    hits = retrieve(question, top_k=top_k, user_group=user_group)
+    rewritten = rewrite_query(question)
+    if rewritten != question:
+        logger.info("Query rewritten: %r → %r", question, rewritten)
+
+    hits = retrieve(rewritten, top_k=top_k, user_group=user_group)
     context = build_context(hits)
 
     client = OpenAI()
@@ -86,6 +91,6 @@ def answer_question(
     }
 
     if use_cache:
-        save_cached_answer(question, result)
+        save_semantic_cache(question, result)
 
     return result
