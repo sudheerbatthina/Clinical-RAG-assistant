@@ -6,6 +6,7 @@ load_dotenv()
 
 # Paths
 _STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "storage"))
+STORAGE_DIR = _STORAGE_DIR          # public alias used by db.py
 DATA_DIR = _STORAGE_DIR / "data"
 CHROMA_DIR = str(_STORAGE_DIR / "chroma_db")
 DATA_DIR.mkdir(parents=True, exist_ok=True)

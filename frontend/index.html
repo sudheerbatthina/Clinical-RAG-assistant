@@ -5,565 +5,700 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Clinical RAG Assistant</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #f0f2f5;
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-    color: #1a1a2e;
-  }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  color: #1a1a2e;
+}
 
-  /* ── Sidebar ── */
-  #sidebar {
-    width: 260px;
-    min-width: 260px;
-    background: #1a1a2e;
-    color: #e8eaf6;
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    overflow: hidden;
-  }
+/* ═══════════════════════════════════════════ SIDEBAR */
+#sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: #141927;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-  #sidebar-header {
-    padding: 24px 20px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
+/* Header */
+#sb-header {
+  padding: 20px 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+#sb-header h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.2px;
+}
+#sb-header p {
+  font-size: 11px;
+  color: #4a5568;
+  margin-top: 3px;
+  padding-left: 26px;
+}
 
-  #sidebar-header h1 {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #fff;
-  }
+/* New chat button */
+#new-chat-btn {
+  margin: 12px 12px 6px;
+  padding: 9px 14px;
+  background: #3f51b5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+#new-chat-btn:hover { background: #5c6bc0; }
 
-  #sidebar-header p {
-    font-size: 11px;
-    color: #7986cb;
-    margin-top: 4px;
-    padding-left: 28px;
-  }
+/* Chat list */
+#sb-chats-label {
+  padding: 10px 16px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #374151;
+  flex-shrink: 0;
+}
+#chat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+  min-height: 0;
+}
+#chat-list::-webkit-scrollbar { width: 3px; }
+#chat-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
 
-  #upload-btn {
-    margin: 16px;
-    padding: 10px 14px;
-    background: #3f51b5;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.15s;
-  }
-  #upload-btn:hover { background: #5c6bc0; }
-  #upload-btn:disabled { background: #455a64; cursor: not-allowed; }
+.chat-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  margin-bottom: 1px;
+  transition: background 0.1s;
+  gap: 6px;
+}
+.chat-item:hover { background: rgba(255,255,255,0.06); }
+.chat-item.active { background: rgba(63,81,181,0.25); }
+.chat-item.active .chat-title { color: #c5cae9; }
 
-  #upload-status {
-    margin: 0 16px 12px;
-    font-size: 11px;
-    min-height: 16px;
-    color: #80cbc4;
-  }
-  #upload-status.error { color: #ef9a9a; }
+.chat-item-body { min-width: 0; flex: 1; }
+.chat-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-time { font-size: 10px; color: #374151; margin-top: 2px; }
 
-  #upload-progress {
-    margin: 0 16px 12px;
-    height: 3px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 2px;
-    display: none;
-  }
-  #upload-progress-bar {
-    height: 100%;
-    background: #3f51b5;
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.3s;
-  }
+.chat-del-btn {
+  background: none;
+  border: none;
+  color: #4a5568;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.chat-item:hover .chat-del-btn { opacity: 1; }
+.chat-del-btn:hover { color: #ef4444; }
 
-  #docs-label {
-    padding: 0 16px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: #546e7a;
-  }
+.chat-list-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: #374151;
+  font-style: italic;
+}
 
-  #doc-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 8px 16px;
-  }
+/* Docs section */
+#sb-bottom {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+#sb-docs-label {
+  padding: 10px 16px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #374151;
+}
+#doc-list {
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 0 8px 4px;
+}
+#doc-list::-webkit-scrollbar { width: 3px; }
+#doc-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
 
-  #doc-list::-webkit-scrollbar { width: 4px; }
-  #doc-list::-webkit-scrollbar-track { background: transparent; }
-  #doc-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.doc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.doc-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.doc-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.doc-chunks { font-size: 10px; color: #374151; }
+.doc-empty { padding: 6px 10px; font-size: 11px; color: #374151; font-style: italic; }
 
-  .doc-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 6px;
-    margin-bottom: 2px;
-    transition: background 0.1s;
-  }
-  .doc-item:hover { background: rgba(255,255,255,0.05); }
+/* Upload */
+#upload-area {
+  padding: 10px 12px 14px;
+}
+#upload-btn {
+  width: 100%;
+  padding: 9px 14px;
+  background: rgba(255,255,255,0.05);
+  color: #6b7280;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.15s, color 0.15s;
+}
+#upload-btn:hover { background: rgba(255,255,255,0.09); color: #9ca3af; }
+#upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+#upload-status {
+  margin-top: 6px;
+  font-size: 10px;
+  color: #80cbc4;
+  min-height: 14px;
+  text-align: center;
+}
+#upload-status.err { color: #ef9a9a; }
 
-  .doc-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+/* ═══════════════════════════════════════════ MAIN */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f0f2f5;
+}
 
-  .doc-info { min-width: 0; }
-  .doc-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: #e8eaf6;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 170px;
-  }
-  .doc-chunks { font-size: 10px; color: #546e7a; margin-top: 2px; }
+/* Empty state */
+#empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #9ca3af;
+}
+#empty-state .es-icon { font-size: 52px; }
+#empty-state h2 { font-size: 18px; font-weight: 600; color: #6b7280; }
+#empty-state p { font-size: 13px; }
+#empty-new-chat-btn {
+  margin-top: 8px;
+  padding: 10px 22px;
+  background: #3f51b5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#empty-new-chat-btn:hover { background: #5c6bc0; }
 
-  .doc-empty {
-    padding: 12px 10px;
-    font-size: 12px;
-    color: #546e7a;
-    font-style: italic;
-  }
+/* Chat view */
+#chat-view {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+#chat-view.visible { display: flex; }
 
-  /* ── Main ── */
-  #main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+#messages::-webkit-scrollbar { width: 6px; }
+#messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 
-  #chat-header {
-    background: #fff;
-    padding: 16px 24px;
-    border-bottom: 1px solid #e0e0e0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  #chat-header h2 { font-size: 15px; font-weight: 600; color: #1a1a2e; }
-  #chat-header p  { font-size: 12px; color: #90a4ae; }
+.msg-row { display: flex; flex-direction: column; max-width: 72%; }
+.msg-row.user { align-self: flex-end; align-items: flex-end; }
+.msg-row.bot  { align-self: flex-start; align-items: flex-start; }
 
-  #messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  #messages::-webkit-scrollbar { width: 6px; }
-  #messages::-webkit-scrollbar-track { background: transparent; }
-  #messages::-webkit-scrollbar-thumb { background: #cfd8dc; border-radius: 3px; }
+.bubble {
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.user .bubble { background: #3f51b5; color: #fff; border-bottom-right-radius: 3px; }
+.bot  .bubble { background: #fff; color: #1a1a2e; border-bottom-left-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
-  .msg-row {
-    display: flex;
-    flex-direction: column;
-    max-width: 72%;
-  }
-  .msg-row.user { align-self: flex-end; align-items: flex-end; }
-  .msg-row.bot  { align-self: flex-start; align-items: flex-start; }
+.sources { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.chip {
+  background: #e8eaf6;
+  color: #3f51b5;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 12px;
+}
 
-  .bubble {
-    padding: 12px 16px;
-    border-radius: 16px;
-    font-size: 14px;
-    line-height: 1.55;
-    word-break: break-word;
-    white-space: pre-wrap;
-  }
-  .user .bubble {
-    background: #3f51b5;
-    color: #fff;
-    border-bottom-right-radius: 4px;
-  }
-  .bot .bubble {
-    background: #fff;
-    color: #1a1a2e;
-    border-bottom-left-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  }
+/* Typing dots */
+.typing-bubble {
+  background: #fff;
+  border-radius: 16px;
+  border-bottom-left-radius: 3px;
+  padding: 13px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.typing-bubble span {
+  width: 7px; height: 7px;
+  background: #9ca3af;
+  border-radius: 50%;
+  display: inline-block;
+  animation: bounce 1.2s infinite ease-in-out;
+}
+.typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+.typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce {
+  0%,60%,100% { transform: translateY(0); }
+  30%          { transform: translateY(-6px); }
+}
 
-  .sources {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .source-chip {
-    background: #e8eaf6;
-    color: #3f51b5;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 12px;
-    white-space: nowrap;
-  }
+/* Input bar */
+#input-bar {
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  padding: 14px 24px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+#question-input {
+  flex: 1;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  max-height: 120px;
+  line-height: 1.5;
+  color: #1a1a2e;
+  transition: border-color 0.15s;
+}
+#question-input:focus { border-color: #3f51b5; }
+#question-input::placeholder { color: #d1d5db; }
+#question-input:disabled { background: #f9fafb; }
 
-  /* Typing indicator */
-  .typing-bubble {
-    background: #fff;
-    border-radius: 16px;
-    border-bottom-left-radius: 4px;
-    padding: 14px 18px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    display: flex;
-    gap: 5px;
-    align-items: center;
-  }
-  .typing-bubble span {
-    width: 7px; height: 7px;
-    background: #90a4ae;
-    border-radius: 50%;
-    display: inline-block;
-    animation: bounce 1.2s infinite ease-in-out;
-  }
-  .typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
-  .typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); }
-    30%           { transform: translateY(-6px); }
-  }
-
-  /* Empty state */
-  #empty-state {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #b0bec5;
-    gap: 12px;
-    pointer-events: none;
-  }
-  #empty-state .icon { font-size: 48px; }
-  #empty-state p { font-size: 14px; }
-
-  /* Input bar */
-  #input-bar {
-    background: #fff;
-    border-top: 1px solid #e0e0e0;
-    padding: 16px 24px;
-    display: flex;
-    gap: 12px;
-    align-items: flex-end;
-  }
-
-  #question-input {
-    flex: 1;
-    border: 1.5px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 10px 14px;
-    font-size: 14px;
-    font-family: inherit;
-    resize: none;
-    outline: none;
-    max-height: 140px;
-    line-height: 1.5;
-    transition: border-color 0.15s;
-    color: #1a1a2e;
-  }
-  #question-input:focus { border-color: #3f51b5; }
-  #question-input::placeholder { color: #b0bec5; }
-
-  #send-btn {
-    width: 42px; height: 42px;
-    background: #3f51b5;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.15s;
-    font-size: 18px;
-  }
-  #send-btn:hover { background: #5c6bc0; }
-  #send-btn:disabled { background: #cfd8dc; cursor: not-allowed; }
-
-  #input-hint {
-    font-size: 11px;
-    color: #b0bec5;
-    padding: 0 4px 4px;
-    align-self: flex-start;
-  }
+#send-btn {
+  width: 40px; height: 40px;
+  background: #3f51b5;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+#send-btn:hover:not(:disabled) { background: #5c6bc0; }
+#send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<!-- ══════════════ SIDEBAR ══════════════ -->
 <aside id="sidebar">
-  <div id="sidebar-header">
+  <div id="sb-header">
     <h1>&#x1FA7A; Clinical RAG</h1>
     <p>Healthcare document Q&amp;A</p>
   </div>
 
-  <button id="upload-btn">
-    <span>&#x2B06;</span> Upload PDF
-  </button>
-  <input type="file" id="file-input" accept=".pdf" style="display:none" />
-  <div id="upload-progress"><div id="upload-progress-bar"></div></div>
-  <div id="upload-status"></div>
+  <button id="new-chat-btn">&#xff0b; New Chat</button>
 
-  <div id="docs-label">Indexed Documents</div>
-  <div id="doc-list"><div class="doc-empty">Loading…</div></div>
+  <div id="sb-chats-label">Chats</div>
+  <div id="chat-list"><div class="chat-list-empty">No chats yet.</div></div>
+
+  <div id="sb-bottom">
+    <div id="sb-docs-label">Documents</div>
+    <div id="doc-list"><div class="doc-empty">Loading…</div></div>
+    <div id="upload-area">
+      <button id="upload-btn">&#x2B06; Upload PDF</button>
+      <div id="upload-status"></div>
+    </div>
+  </div>
 </aside>
 
-<!-- ═══════════════ MAIN ═══════════════ -->
+<!-- ══════════════ MAIN ══════════════ -->
 <main id="main">
-  <div id="chat-header">
-    <div>
-      <h2>Ask a clinical question</h2>
-      <p>Answers grounded in your uploaded documents</p>
-    </div>
+  <!-- Empty state -->
+  <div id="empty-state">
+    <div class="es-icon">&#x1F4CB;</div>
+    <h2>Clinical RAG Assistant</h2>
+    <p>Upload a PDF and ask questions grounded in your documents.</p>
+    <button id="empty-new-chat-btn">&#xff0b; Start a new chat</button>
   </div>
 
-  <div id="messages">
-    <div id="empty-state">
-      <div class="icon">&#x1F4CB;</div>
-      <p>Upload a PDF, then ask a question to get started.</p>
+  <!-- Chat view -->
+  <div id="chat-view">
+    <div id="messages"></div>
+    <div id="input-bar">
+      <textarea id="question-input" rows="1"
+        placeholder="Ask a question about your documents…" disabled></textarea>
+      <button id="send-btn" disabled>&#x27A4;</button>
     </div>
-  </div>
-
-  <div id="input-bar">
-    <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
-      <textarea
-        id="question-input"
-        rows="1"
-        placeholder="Ask about your clinical documents…"
-      ></textarea>
-      <span id="input-hint">Press Enter to send &nbsp;·&nbsp; Shift+Enter for newline</span>
-    </div>
-    <button id="send-btn" title="Send">&#x27A4;</button>
   </div>
 </main>
 
+<!-- hidden file input -->
+<input type="file" id="file-input" accept=".pdf" style="display:none" />
+
 <script>
-  const API_KEY = "dev-key-123";
-  const BASE    = window.location.origin;
+const API_KEY = "dev-key-123";
+const BASE    = window.location.origin;
+const HEADERS = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
+const AUTH    = { "X-API-Key": API_KEY };
 
-  const uploadBtn      = document.getElementById("upload-btn");
-  const fileInput      = document.getElementById("file-input");
-  const uploadStatus   = document.getElementById("upload-status");
-  const uploadProgress = document.getElementById("upload-progress");
-  const uploadBar      = document.getElementById("upload-progress-bar");
-  const docList        = document.getElementById("doc-list");
-  const messages       = document.getElementById("messages");
-  const emptyState     = document.getElementById("empty-state");
-  const questionInput  = document.getElementById("question-input");
-  const sendBtn        = document.getElementById("send-btn");
+// ── State ──────────────────────────────────────────────────────────────────
+let activeChatId = null;
+let busy = false;
 
-  // ── Auto-resize textarea ──────────────────────────────────────────────
-  questionInput.addEventListener("input", () => {
-    questionInput.style.height = "auto";
-    questionInput.style.height = Math.min(questionInput.scrollHeight, 140) + "px";
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const chatList      = document.getElementById("chat-list");
+const docList       = document.getElementById("doc-list");
+const emptyState    = document.getElementById("empty-state");
+const chatView      = document.getElementById("chat-view");
+const messages      = document.getElementById("messages");
+const questionInput = document.getElementById("question-input");
+const sendBtn       = document.getElementById("send-btn");
+const uploadBtn     = document.getElementById("upload-btn");
+const uploadStatus  = document.getElementById("upload-status");
+const fileInput     = document.getElementById("file-input");
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async function init() {
+  await Promise.all([loadChats(), loadDocs()]);
+})();
+
+// ── Chat list ──────────────────────────────────────────────────────────────
+async function loadChats() {
+  try {
+    const r = await fetch(`${BASE}/chats`, { headers: AUTH });
+    if (!r.ok) throw new Error();
+    const chats = await r.json();
+    renderChatList(chats);
+    if (chats.length && !activeChatId) selectChat(chats[0].id);
+  } catch {
+    chatList.innerHTML = '<div class="chat-list-empty">Could not load chats.</div>';
+  }
+}
+
+function renderChatList(chats) {
+  if (!chats.length) {
+    chatList.innerHTML = '<div class="chat-list-empty">No chats yet.</div>';
+    return;
+  }
+  chatList.innerHTML = chats.map(c => `
+    <div class="chat-item${c.id === activeChatId ? ' active' : ''}"
+         data-id="${c.id}" onclick="selectChat('${c.id}')">
+      <div class="chat-item-body">
+        <div class="chat-title">${esc(c.title)}</div>
+        <div class="chat-time">${relTime(c.updated_at)}</div>
+      </div>
+      <button class="chat-del-btn" title="Delete chat"
+              onclick="deleteChat(event,'${c.id}')">&#x2715;</button>
+    </div>`).join("");
+}
+
+function updateActiveHighlight() {
+  document.querySelectorAll(".chat-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.id === activeChatId);
   });
+}
 
-  // ── Enter to send ─────────────────────────────────────────────────────
-  questionInput.addEventListener("keydown", e => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
-  sendBtn.addEventListener("click", sendMessage);
+// ── Select / open chat ─────────────────────────────────────────────────────
+async function selectChat(chatId) {
+  activeChatId = chatId;
+  updateActiveHighlight();
+  showChatView();
 
-  // ── Fetch document list ───────────────────────────────────────────────
-  async function loadDocs() {
-    try {
-      const r = await fetch(`${BASE}/documents`);
-      if (!r.ok) throw new Error(r.statusText);
-      const docs = await r.json();
-      renderDocs(docs);
-    } catch {
-      docList.innerHTML = '<div class="doc-empty">Could not load documents.</div>';
+  messages.innerHTML = "";
+  try {
+    const r = await fetch(`${BASE}/chats/${chatId}`, { headers: AUTH });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    data.messages.forEach(m => {
+      if (m.role === "user") appendUserMsg(m.content);
+      else {
+        let sources = [];
+        try { sources = JSON.parse(m.sources || "[]"); } catch {}
+        appendBotMsg(m.content, sources);
+      }
+    });
+  } catch {
+    appendBotMsg("⚠️ Could not load messages.", []);
+  }
+  enableInput();
+}
+
+// ── New chat ───────────────────────────────────────────────────────────────
+async function createNewChat() {
+  try {
+    const r = await fetch(`${BASE}/chats`, { method: "POST", headers: AUTH });
+    if (!r.ok) throw new Error();
+    const chat = await r.json();
+    activeChatId = chat.id;
+    await loadChats();
+    messages.innerHTML = "";
+    showChatView();
+    enableInput();
+  } catch {
+    alert("Could not create chat. Is the server running?");
+  }
+}
+
+document.getElementById("new-chat-btn").addEventListener("click", createNewChat);
+document.getElementById("empty-new-chat-btn").addEventListener("click", createNewChat);
+
+// ── Delete chat ────────────────────────────────────────────────────────────
+async function deleteChat(e, chatId) {
+  e.stopPropagation();
+  if (!confirm("Delete this chat?")) return;
+  try {
+    await fetch(`${BASE}/chats/${chatId}`, { method: "DELETE", headers: AUTH });
+    if (activeChatId === chatId) {
+      activeChatId = null;
+      showEmptyState();
+      disableInput();
     }
+    await loadChats();
+  } catch {
+    alert("Could not delete chat.");
   }
+}
 
-  function renderDocs(docs) {
-    if (!docs.length) {
-      docList.innerHTML = '<div class="doc-empty">No documents indexed yet.</div>';
-      return;
-    }
-    docList.innerHTML = docs.map(d => `
-      <div class="doc-item">
-        <span class="doc-icon">&#x1F4C4;</span>
-        <div class="doc-info">
-          <div class="doc-name" title="${esc(d.source)}">${esc(d.source)}</div>
-          <div class="doc-chunks">${d.chunk_count} chunk${d.chunk_count !== 1 ? "s" : ""}</div>
-        </div>
-      </div>`).join("");
+// ── Documents ──────────────────────────────────────────────────────────────
+async function loadDocs() {
+  try {
+    const r = await fetch(`${BASE}/documents`);
+    if (!r.ok) throw new Error();
+    const docs = await r.json();
+    docList.innerHTML = docs.length
+      ? docs.map(d => `
+          <div class="doc-item">
+            <span class="doc-icon">&#x1F4C4;</span>
+            <div>
+              <div class="doc-name" title="${esc(d.source)}">${esc(d.source)}</div>
+              <div class="doc-chunks">${d.chunk_count} chunks</div>
+            </div>
+          </div>`).join("")
+      : '<div class="doc-empty">No documents indexed yet.</div>';
+  } catch {
+    docList.innerHTML = '<div class="doc-empty">Could not load.</div>';
   }
+}
 
-  // ── Upload PDF ────────────────────────────────────────────────────────
-  uploadBtn.addEventListener("click", () => fileInput.click());
-
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    fileInput.value = "";
-
-    uploadBtn.disabled = true;
-    setUploadStatus("", false);
-    uploadProgress.style.display = "block";
-    animateProgress();
-
-    const form = new FormData();
-    form.append("file", file);
-
-    try {
-      const r = await fetch(`${BASE}/upload`, {
-        method: "POST",
-        headers: { "X-API-Key": API_KEY },
-        body: form,
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.detail || r.statusText);
-      setUploadStatus(`✓ ${file.name} — indexing in background`, false);
-      setTimeout(loadDocs, 3000);
-      setTimeout(loadDocs, 8000);
-    } catch (err) {
-      setUploadStatus(`Upload failed: ${err.message}`, true);
-    } finally {
-      uploadProgress.style.display = "none";
-      uploadBar.style.width = "0%";
-      uploadBtn.disabled = false;
-    }
-  });
-
-  function animateProgress() {
-    let pct = 0;
-    const iv = setInterval(() => {
-      pct = Math.min(pct + Math.random() * 12, 90);
-      uploadBar.style.width = pct + "%";
-      if (uploadProgress.style.display === "none") clearInterval(iv);
-    }, 300);
+// ── Upload ─────────────────────────────────────────────────────────────────
+uploadBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  fileInput.value = "";
+  uploadBtn.disabled = true;
+  setUploadStatus("Uploading…", false);
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const r = await fetch(`${BASE}/upload`, { method: "POST", headers: AUTH, body: form });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    setUploadStatus(`✓ ${file.name} — indexing in background`, false);
+    setTimeout(loadDocs, 4000);
+    setTimeout(loadDocs, 10000);
+  } catch (err) {
+    setUploadStatus(`✗ ${err.message}`, true);
+  } finally {
+    uploadBtn.disabled = false;
   }
+});
 
-  function setUploadStatus(msg, isError) {
-    uploadStatus.textContent = msg;
-    uploadStatus.className = isError ? "error" : "";
-  }
+function setUploadStatus(msg, isErr) {
+  uploadStatus.textContent = msg;
+  uploadStatus.className = isErr ? "err" : "";
+}
 
-  // ── Chat ──────────────────────────────────────────────────────────────
-  let busy = false;
+// ── Send message ───────────────────────────────────────────────────────────
+questionInput.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+sendBtn.addEventListener("click", sendMessage);
+questionInput.addEventListener("input", () => {
+  questionInput.style.height = "auto";
+  questionInput.style.height = Math.min(questionInput.scrollHeight, 120) + "px";
+});
 
-  function sendMessage() {
-    const text = questionInput.value.trim();
-    if (!text || busy) return;
+async function sendMessage() {
+  const text = questionInput.value.trim();
+  if (!text || busy || !activeChatId) return;
 
-    hideEmpty();
-    appendUserMsg(text);
-    questionInput.value = "";
-    questionInput.style.height = "auto";
+  busy = true;
+  sendBtn.disabled = true;
+  appendUserMsg(text);
+  questionInput.value = "";
+  questionInput.style.height = "auto";
 
-    const typing = appendTyping();
-    busy = true;
-    sendBtn.disabled = true;
+  const typing = appendTyping();
 
-    fetch(`${BASE}/query`, {
+  try {
+    const r = await fetch(`${BASE}/query`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": API_KEY,
-      },
-      body: JSON.stringify({ question: text, top_k: 5 }),
-    })
-    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-    .then(({ ok, data }) => {
-      typing.remove();
-      if (!ok) throw new Error(data.detail || "Unknown error");
-      appendBotMsg(data.answer, data.sources || []);
-    })
-    .catch(err => {
-      typing.remove();
-      appendBotMsg(`⚠️ ${err.message}`, []);
-    })
-    .finally(() => {
-      busy = false;
-      sendBtn.disabled = false;
+      headers: HEADERS,
+      body: JSON.stringify({ question: text, chat_id: activeChatId, top_k: 5 }),
     });
+    const data = await r.json();
+    typing.remove();
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    appendBotMsg(data.answer, data.sources || []);
+    await loadChats(); // refresh titles/times
+  } catch (err) {
+    typing.remove();
+    appendBotMsg(`⚠️ ${err.message}`, []);
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
   }
+}
 
-  function hideEmpty() {
-    if (emptyState) emptyState.style.display = "none";
-  }
+// ── Message rendering ──────────────────────────────────────────────────────
+function appendUserMsg(text) {
+  const row = el("div", "msg-row user");
+  row.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  messages.appendChild(row);
+  scrollBottom();
+}
 
-  function appendUserMsg(text) {
-    const row = document.createElement("div");
-    row.className = "msg-row user";
-    row.innerHTML = `<div class="bubble">${esc(text)}</div>`;
-    messages.appendChild(row);
-    scrollBottom();
-  }
+function appendBotMsg(text, sources) {
+  const deduped = dedupSources(sources);
+  const chips = deduped.map(s =>
+    `<span class="chip">${esc(s.source)} · p.${s.page}</span>`).join("");
+  const row = el("div", "msg-row bot");
+  row.innerHTML = `
+    <div class="bubble">${esc(text)}</div>
+    ${chips ? `<div class="sources">${chips}</div>` : ""}`;
+  messages.appendChild(row);
+  scrollBottom();
+}
 
-  function appendBotMsg(text, sources) {
-    const chips = dedupSources(sources).map(s =>
-      `<span class="source-chip">${esc(s.source)} &middot; p.${s.page}</span>`
-    ).join("");
+function appendTyping() {
+  const row = el("div", "msg-row bot");
+  row.innerHTML = `<div class="typing-bubble"><span></span><span></span><span></span></div>`;
+  messages.appendChild(row);
+  scrollBottom();
+  return row;
+}
 
-    const row = document.createElement("div");
-    row.className = "msg-row bot";
-    row.innerHTML = `
-      <div class="bubble">${esc(text)}</div>
-      ${chips ? `<div class="sources">${chips}</div>` : ""}
-    `;
-    messages.appendChild(row);
-    scrollBottom();
-  }
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function showChatView() {
+  emptyState.style.display = "none";
+  chatView.classList.add("visible");
+}
+function showEmptyState() {
+  emptyState.style.display = "";
+  chatView.classList.remove("visible");
+}
+function enableInput() {
+  questionInput.disabled = false;
+  sendBtn.disabled = false;
+  questionInput.focus();
+}
+function disableInput() {
+  questionInput.disabled = true;
+  sendBtn.disabled = true;
+}
+function scrollBottom() {
+  messages.scrollTop = messages.scrollHeight;
+}
+function el(tag, cls) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  return e;
+}
+function dedupSources(sources) {
+  const seen = new Set();
+  return (sources || []).filter(s => {
+    const k = `${s.source}:${s.page}`;
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
+}
+function esc(str) {
+  return String(str ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function relTime(iso) {
+  const d = new Date(iso.endsWith("Z") ? iso : iso + "Z");
+  const s = Math.floor((Date.now() - d) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
+}
 
-  function appendTyping() {
-    const row = document.createElement("div");
-    row.className = "msg-row bot";
-    row.innerHTML = `
-      <div class="typing-bubble">
-        <span></span><span></span><span></span>
-      </div>`;
-    messages.appendChild(row);
-    scrollBottom();
-    return row;
-  }
-
-  function dedupSources(sources) {
-    const seen = new Set();
-    return sources.filter(s => {
-      const key = `${s.source}:${s.page}`;
-      if (seen.has(key)) return false;
-      seen.add(key); return true;
-    });
-  }
-
-  function scrollBottom() {
-    messages.scrollTop = messages.scrollHeight;
-  }
-
-  function esc(str) {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  // ── Init ──────────────────────────────────────────────────────────────
-  loadDocs();
-  setInterval(loadDocs, 30000);
+// Refresh chat timestamps every minute
+setInterval(loadChats, 60000);
+setInterval(loadDocs, 30000);
 </script>
 </body>
 </html>

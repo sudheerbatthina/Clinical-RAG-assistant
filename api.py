@@ -4,10 +4,11 @@ Run locally:
     uvicorn api:app --reload
 
 Authentication:
-    All endpoints except /health require an X-API-Key header matching one of
-    the keys in API_KEYS (set in .env as a comma-separated list).
+    All endpoints except /health and /documents require an X-API-Key header
+    matching one of the keys in API_KEYS (set in .env as a comma-separated list).
 """
 
+import json
 import logging
 
 import chromadb
@@ -20,6 +21,10 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from rag_assistant.generator import answer_question
 from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME, DATA_DIR
 from rag_assistant.cache import cache_backend
+from rag_assistant.db import (
+    init_db, create_chat, list_chats, get_chat, delete_chat,
+    add_message, get_messages,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -27,11 +32,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Healthcare RAG Assistant")
 
 # ---------------------------------------------------------------------------
-# Startup check
+# Startup
 # ---------------------------------------------------------------------------
 
 @app.on_event("startup")
-def _check_index() -> None:
+def _startup() -> None:
+    init_db()
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
@@ -89,6 +95,7 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     use_cache: bool = True
     user_group: str | None = None  # public / clinical / billing / admin
+    chat_id: str | None = None     # existing chat id, "new", or None
 
 
 class SourceInfo(BaseModel):
@@ -104,10 +111,45 @@ class QueryResponse(BaseModel):
     from_cache: bool
     latency_s: float | None = None
     token_count: int | None = None
+    chat_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# Chat endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/chats", dependencies=[Depends(_require_api_key)])
+def get_chats_list():
+    """List all chats sorted by most recently updated."""
+    return list_chats()
+
+
+@app.post("/chats", dependencies=[Depends(_require_api_key)])
+def new_chat():
+    """Create a new empty chat and return it."""
+    return create_chat()
+
+
+@app.get("/chats/{chat_id}", dependencies=[Depends(_require_api_key)])
+def get_chat_detail(chat_id: str):
+    """Return a chat and all its messages."""
+    chat = get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return {**chat, "messages": get_messages(chat_id)}
+
+
+@app.delete("/chats/{chat_id}", dependencies=[Depends(_require_api_key)])
+def remove_chat(chat_id: str):
+    """Delete a chat and all its messages."""
+    if not get_chat(chat_id):
+        raise HTTPException(status_code=404, detail="Chat not found")
+    delete_chat(chat_id)
+    return {"status": "deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Core endpoints
 # ---------------------------------------------------------------------------
 
 @app.post("/index", dependencies=[Depends(_require_api_key)])
@@ -124,7 +166,7 @@ def index():
 
 @app.post("/upload", dependencies=[Depends(_require_api_key)])
 async def upload(file: UploadFile = File(...)):
-    """Upload a PDF, index it immediately, and return the total chunk count."""
+    """Upload a PDF, index it in the background, and return immediately."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
@@ -149,13 +191,22 @@ async def upload(file: UploadFile = File(...)):
     return {
         "status": "upload_received_indexing_started",
         "filename": file.filename,
-        "message": "Indexing running in background. Watch deploy logs."
+        "message": "Indexing running in background. Watch deploy logs.",
     }
 
 
 @app.post("/query", response_model=QueryResponse, dependencies=[Depends(_require_api_key)])
 def query(request: QueryRequest):
-    """Ask a question and get a grounded answer with citations."""
+    """Ask a question and get a grounded answer with citations.
+
+    If chat_id is "new", a chat is created automatically.
+    If chat_id is provided, the exchange is persisted to that chat.
+    """
+    active_chat_id = request.chat_id
+    if active_chat_id == "new":
+        chat = create_chat()
+        active_chat_id = chat["id"]
+
     try:
         result = answer_question(
             question=request.question,
@@ -163,6 +214,11 @@ def query(request: QueryRequest):
             use_cache=request.use_cache,
             user_group=request.user_group,
         )
+        if active_chat_id:
+            add_message(active_chat_id, "user", request.question)
+            add_message(active_chat_id, "assistant", result["answer"],
+                        json.dumps(result["sources"]))
+            result["chat_id"] = active_chat_id
         return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -170,12 +226,11 @@ def query(request: QueryRequest):
 
 @app.get("/documents")
 def documents():
-    """Return unique sources and their chunk counts from the vector store. No auth required."""
+    """Return unique sources and their chunk counts. No auth required."""
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
-        total = collection.count()
-        if total == 0:
+        if collection.count() == 0:
             return []
         results = collection.get(include=["metadatas"])
         counts: dict[str, int] = {}
@@ -193,5 +248,5 @@ def health():
     return {"status": "ok", "cache_backend": cache_backend()}
 
 
-# Mount frontend AFTER all API routes so /api paths take priority
+# Mount frontend AFTER all API routes so API paths take priority
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
