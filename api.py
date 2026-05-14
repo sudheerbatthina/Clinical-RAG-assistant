@@ -14,12 +14,13 @@ import threading
 
 import chromadb
 from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File
+from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from rag_assistant.generator import answer_question
+from rag_assistant.generator import answer_question, stream_answer
 from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME, DATA_DIR, STORAGE_DIR
 from rag_assistant.cache import cache_backend
 from rag_assistant.db import (
@@ -289,6 +290,71 @@ def query(request: QueryRequest):
                         json.dumps(result["sources"]))
             result["chat_id"] = active_chat_id
         return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/query/stream", dependencies=[Depends(_require_api_key)])
+async def query_stream(request: QueryRequest):
+    """Stream an SSE response for a question with optional chat persistence."""
+    active_chat_id = request.chat_id
+    if active_chat_id == "new":
+        chat = create_chat()
+        active_chat_id = chat["id"]
+
+    session_id = active_chat_id if active_chat_id else "global"
+
+    history: list[dict] = []
+    if active_chat_id:
+        history = get_messages(active_chat_id)
+
+    collected: dict = {"answer": "", "sources": []}
+
+    def _event_stream():
+        for chunk in stream_answer(
+            question=request.question,
+            top_k=request.top_k,
+            user_group=request.user_group,
+            session_id=session_id,
+            history=history,
+        ):
+            try:
+                raw = chunk.removeprefix("data: ").strip()
+                payload = json.loads(raw)
+                if payload.get("type") == "answer_chunk":
+                    collected["answer"] += payload.get("content", "")
+                elif payload.get("type") == "sources":
+                    collected["sources"] = payload.get("sources", [])
+            except Exception:
+                pass
+            yield chunk
+
+        if active_chat_id:
+            add_message(active_chat_id, "user", request.question)
+            add_message(active_chat_id, "assistant", collected["answer"],
+                        json.dumps(collected["sources"]))
+            yield f"data: {json.dumps({'type': 'chat_id', 'chat_id': active_chat_id})}\n\n"
+
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")
+
+
+@app.get("/admin/documents", dependencies=[Depends(_require_api_key)])
+def list_global_documents():
+    """List all globally indexed documents with chunk counts (auth required)."""
+    try:
+        client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = client.get_or_create_collection(name=COLLECTION_NAME)
+        if collection.count() == 0:
+            return []
+        results = collection.get(
+            where={"session_id": {"$eq": "global"}},
+            include=["metadatas"],
+        )
+        counts: dict[str, int] = {}
+        for meta in results["metadatas"]:
+            src = meta.get("source", "unknown")
+            counts[src] = counts.get(src, 0) + 1
+        return [{"source": src, "chunk_count": cnt} for src, cnt in sorted(counts.items())]
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

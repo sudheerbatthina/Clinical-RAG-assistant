@@ -1,12 +1,14 @@
+import json
 import time
 import logging
+from typing import Generator
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
 from .config import CHAT_MODEL, TOP_K
 from .retriever import retrieve
-from .query_rewriter import rewrite_query
+from .query_rewriter import rewrite_query_with_history
 from .semantic_cache import get_semantic_cache, save_semantic_cache
 
 load_dotenv()
@@ -29,12 +31,23 @@ def build_context(hits: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
+def _build_messages(context: str, question: str, history: list[dict] | None) -> list[dict]:
+    """Build the OpenAI messages list with optional conversation history."""
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for msg in (history or [])[-6:]:   # last 3 turns (6 messages)
+        if msg["role"] in ("user", "assistant"):
+            msgs.append({"role": msg["role"], "content": msg["content"]})
+    msgs.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
+    return msgs
+
+
 def answer_question(
     question: str,
     top_k: int = TOP_K,
     use_cache: bool = True,
     user_group: str | None = None,
     session_id: str = "global",
+    history: list[dict] | None = None,
 ) -> dict:
     """Run the full RAG pipeline with query rewriting and semantic caching.
 
@@ -44,6 +57,7 @@ def answer_question(
         use_cache:  Whether to read/write the semantic cache.
         user_group: Access-control group forwarded to retriever.
         session_id: Retrieval scope — "global" or a specific chat id.
+        history:    Prior conversation messages for multi-turn context.
 
     Returned dict keys:
         question, answer, sources, from_cache, latency_s, token_count
@@ -57,7 +71,7 @@ def answer_question(
             cached.setdefault("token_count", None)
             return cached
 
-    rewritten = rewrite_query(question)
+    rewritten = rewrite_query_with_history(question, history or [])
     if rewritten != question:
         logger.info("Query rewritten: %r → %r", question, rewritten)
 
@@ -68,10 +82,7 @@ def answer_question(
     t0 = time.time()
     response = client.chat.completions.create(
         model=CHAT_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
-        ],
+        messages=_build_messages(context, question, history),
         temperature=0,
     )
     latency_s = round(time.time() - t0, 3)
@@ -96,3 +107,65 @@ def answer_question(
         save_semantic_cache(question, result)
 
     return result
+
+
+def stream_answer(
+    question: str,
+    top_k: int = TOP_K,
+    user_group: str | None = None,
+    session_id: str = "global",
+    history: list[dict] | None = None,
+) -> Generator[str, None, None]:
+    """Yield SSE-formatted chunks for streaming responses."""
+
+    # 1. Semantic cache check — yield full answer as single chunk and return
+    cached = get_semantic_cache(question)
+    if cached:
+        yield f"data: {json.dumps({'type': 'answer_chunk', 'content': cached['answer']})}\n\n"
+        yield f"data: {json.dumps({'type': 'sources', 'sources': cached['sources']})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'from_cache': True})}\n\n"
+        return
+
+    # 2. Rewrite query with conversation context
+    rewritten = rewrite_query_with_history(question, history or [])
+    if rewritten != question:
+        logger.info("Stream query rewritten: %r → %r", question, rewritten)
+
+    # 3. Retrieve
+    hits = retrieve(rewritten, top_k=top_k, user_group=user_group, session_id=session_id)
+    context = build_context(hits)
+
+    # 4. Stream from OpenAI
+    client = OpenAI()
+    full_answer = ""
+    stream = client.chat.completions.create(
+        model=CHAT_MODEL,
+        messages=_build_messages(context, question, history),
+        temperature=0,
+        stream=True,
+    )
+    for chunk in stream:
+        delta = chunk.choices[0].delta.content or ""
+        if delta:
+            full_answer += delta
+            yield f"data: {json.dumps({'type': 'answer_chunk', 'content': delta})}\n\n"
+
+    # 5. Send sources
+    sources = [
+        {
+            "source": h["metadata"]["source"],
+            "page": h["metadata"]["page_number"],
+            "chunk_id": h["chunk_id"],
+        }
+        for h in hits
+    ]
+    yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+    yield f"data: {json.dumps({'type': 'done', 'from_cache': False})}\n\n"
+
+    # 6. Save to semantic cache
+    save_semantic_cache(question, {
+        "question": question,
+        "answer": full_answer,
+        "sources": sources,
+        "from_cache": False,
+    })
