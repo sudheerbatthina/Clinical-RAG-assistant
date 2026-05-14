@@ -314,6 +314,23 @@ def documents():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.delete("/admin/documents/{filename}", dependencies=[Depends(_require_api_key)])
+def delete_global_document(filename: str):
+    """Remove all chunks for a specific source filename from the global chroma index."""
+    try:
+        client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = client.get_or_create_collection(name=COLLECTION_NAME)
+        results = collection.get(where={"source": {"$eq": filename}}, include=[])
+        if not results["ids"]:
+            raise HTTPException(status_code=404, detail=f"{filename} not found")
+        collection.delete(ids=results["ids"])
+        return {"deleted": filename, "chunks_removed": len(results["ids"])}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.get("/health")
 def health():
     """Public health-check — no authentication required."""
