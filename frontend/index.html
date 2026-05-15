@@ -2376,16 +2376,17 @@
   function init() {
     checkAuth();
 
-    // Populate profile from JWT user info
+    loadSettings();
+
+    // Override with JWT identity — always wins over saved settings
     try {
       var cragUser = JSON.parse(localStorage.getItem("crag_user") || "{}");
       if (cragUser.username) {
         settings.name = cragUser.username;
         settings.role = cragUser.role || "member";
+        populateProfileRow();
       }
     } catch(e) {}
-
-    loadSettings();
     loadChats();
 
     var ta = document.getElementById("question-input");

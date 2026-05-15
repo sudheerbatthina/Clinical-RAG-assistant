@@ -143,7 +143,7 @@ def create_user(username: str, password: str,
                 "INSERT INTO users VALUES (?,?,?,?,?,?,?)",
                 (uid, username, email, hash_password(password), role, now, None),
             )
-        except Exception:
+        except sqlite3.IntegrityError:
             raise ValueError(f"Username '{username}' already exists")
     return {"id": uid, "username": username, "role": role}
 
