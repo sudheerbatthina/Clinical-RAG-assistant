@@ -1,765 +1,1323 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Clinical RAG — Admin</title>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical RAG — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --sidebar-bg: #0f0f10;
-  --sidebar-hover: #1a1a1c;
-  --sidebar-active: #1e1e22;
-  --sidebar-border: #2a2a2e;
-  --text-primary: #f4f4f5;
-  --text-muted: #71717a;
-  --text-dim: #3f3f46;
-}
+    :root {
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --sidebar-bg: #0f0f10;
+      --sidebar-hover: #1a1a1c;
+      --sidebar-active: #1e1e22;
+      --sidebar-border: #2a2a2e;
+      --text-primary: #f4f4f5;
+      --text-muted: #71717a;
+      --text-dim: #3f3f46;
+    }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  display: flex; height: 100vh; overflow: hidden;
-  background: #f9f9fb; color: #18181b;
-}
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fff;
+      color: #18181b;
+    }
 
-/* ─── Nav sidebar ─────────────────────────────────────────────────────────── */
-#admin-nav {
-  width: 220px; min-width: 220px;
-  background: var(--sidebar-bg);
-  display: flex; flex-direction: column;
-  border-right: 1px solid var(--sidebar-border);
-}
+    body {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
 
-.an-header { padding: 18px 16px 14px; border-bottom: 1px solid var(--sidebar-border); }
-.an-title { display: block; font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.an-sub   { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    /* ===== SIDEBAR ===== */
+    #admin-nav {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
 
-nav { flex: 1; padding: 8px; }
-.an-link {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: 7px;
-  font-size: 13px; color: #a1a1aa; cursor: pointer;
-  text-decoration: none; margin-bottom: 2px;
-  transition: background 0.1s, color 0.1s;
-  border: none; background: none; width: 100%; text-align: left;
-  border-left: 2px solid transparent;
-}
-.an-link:hover  { background: var(--sidebar-hover); color: var(--text-primary); }
-.an-link.active { background: var(--sidebar-active); color: var(--text-primary); border-left-color: var(--accent); }
+    .nav-header {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid var(--sidebar-border);
+    }
 
-.an-footer { padding: 12px 16px; border-top: 1px solid var(--sidebar-border); }
-.an-back { font-size: 12px; color: var(--text-muted); text-decoration: none; }
-.an-back:hover { color: var(--text-primary); }
+    .nav-header-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2px;
+    }
 
-/* ─── Main area ───────────────────────────────────────────────────────────── */
-#admin-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .nav-header-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
 
-#admin-header {
-  padding: 14px 28px; border-bottom: 1px solid #e4e4e7;
-  background: #fff; flex-shrink: 0;
-}
-#admin-header h1 { font-size: 17px; font-weight: 600; }
+    .nav-items {
+      flex: 1;
+      padding: 8px 0;
+    }
 
-.tab-content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 16px;
+      background: none;
+      border: none;
+      border-left: 2px solid transparent;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
 
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
+    .nav-btn:hover {
+      background: var(--sidebar-hover);
+      color: var(--text-primary);
+    }
 
-/* ─── Stat cards ──────────────────────────────────────────────────────────── */
-.stat-cards {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 16px; margin-bottom: 24px;
-}
-.stat-card {
-  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
-  padding: 20px; text-align: center;
-}
-.sc-value { font-size: 30px; font-weight: 700; color: var(--accent); }
-.sc-label { font-size: 12px; color: #71717a; margin-top: 4px; }
+    .nav-btn.active {
+      border-left-color: var(--accent);
+      background: var(--sidebar-active);
+      color: var(--text-primary);
+    }
 
-/* ─── Two-column layout ───────────────────────────────────────────────────── */
-.ov-columns { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+    .nav-btn .nav-icon {
+      font-size: 15px;
+      flex-shrink: 0;
+    }
 
-/* ─── Section blocks ──────────────────────────────────────────────────────── */
-.section-block {
-  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
-  padding: 20px; margin-bottom: 20px;
-}
-.sb-header {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
-}
-.section-title { font-size: 14px; font-weight: 600; color: #18181b; margin-bottom: 12px; }
-.section-note  { font-size: 12px; color: #71717a; margin-bottom: 12px; }
+    .nav-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--sidebar-border);
+    }
 
-/* ─── Tables ──────────────────────────────────────────────────────────────── */
-.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.data-table th {
-  text-align: left; padding: 8px 12px;
-  font-size: 11px; font-weight: 600; color: #71717a;
-  text-transform: uppercase; letter-spacing: 0.05em;
-  border-bottom: 1px solid #f4f4f5;
-}
-.data-table td { padding: 10px 12px; border-bottom: 1px solid #f9f9fb; color: #3f3f46; }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: #fafafa; }
-.table-empty { color: #a1a1aa; font-style: italic; font-size: 13px; }
+    .nav-footer a {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.12s;
+    }
 
-/* ─── System info ─────────────────────────────────────────────────────────── */
-.sys-info {
-  background: #fafafa; border-radius: 8px; padding: 14px; margin-bottom: 14px;
-}
-.si-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 0; border-bottom: 1px solid #f4f4f5;
-}
-.si-row:last-child { border-bottom: none; }
-.si-key { font-size: 12px; color: #71717a; }
-.si-val { font-size: 12px; font-weight: 500; color: #18181b; font-family: monospace; max-width: 160px; word-break: break-all; text-align: right; }
+    .nav-footer a:hover {
+      color: var(--text-primary);
+    }
 
-/* ─── Buttons ─────────────────────────────────────────────────────────────── */
-.btn-primary {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; background: var(--accent); color: #fff;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: background 0.12s;
-}
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-primary:disabled { background: #e4e4e7; color: #a1a1aa; cursor: not-allowed; }
+    /* ===== MAIN ===== */
+    #admin-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-.btn-secondary {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 14px; background: transparent; color: var(--accent);
-  border: 1.5px solid var(--accent); border-radius: 8px; font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: background 0.12s;
-}
-.btn-secondary:hover { background: rgba(99,102,241,0.06); }
+    #admin-header {
+      padding: 14px 28px;
+      border-bottom: 1px solid #e4e4e7;
+      background: #fff;
+      flex-shrink: 0;
+    }
 
-.btn-danger {
-  display: inline-flex; align-items: center;
-  padding: 4px 10px; background: transparent; color: #ef4444;
-  border: 1px solid #fca5a5; border-radius: 6px; font-size: 12px;
-  cursor: pointer; transition: background 0.12s;
-}
-.btn-danger:hover { background: #fef2f2; }
+    #admin-header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #18181b;
+    }
 
-.btn-text { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0 4px; }
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+    }
 
-/* ─── Status ──────────────────────────────────────────────────────────────── */
-.status-ok  { font-size: 12px; color: #22c55e; margin-top: 8px; }
-.status-err { font-size: 12px; color: #ef4444; margin-top: 8px; }
-.loading-msg { font-size: 13px; color: #71717a; padding: 20px; text-align: center; }
+    .tab-content::-webkit-scrollbar { width: 5px; }
+    .tab-content::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 4px; }
 
-/* ─── Sessions ────────────────────────────────────────────────────────────── */
-.sess-controls { margin-bottom: 16px; }
-.search-input {
-  width: 300px; padding: 8px 14px;
-  border: 1px solid #e4e4e7; border-radius: 8px;
-  font-size: 13px; outline: none; transition: border-color 0.15s;
-}
-.search-input:focus { border-color: #a5b4fc; }
+    .tab-panel {
+      display: none;
+    }
 
-.pagination { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; align-items: center; font-size: 13px; }
-.page-btn {
-  padding: 5px 12px; border: 1px solid #e4e4e7;
-  border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px;
-}
-.page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .tab-panel.active {
+      display: block;
+    }
 
-/* ─── Query tester ────────────────────────────────────────────────────────── */
-.qt-form {
-  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
-  padding: 20px; margin-bottom: 20px;
-}
-.qt-textarea {
-  width: 100%; padding: 10px 14px;
-  border: 1px solid #e4e4e7; border-radius: 8px;
-  font-size: 14px; font-family: inherit; resize: vertical;
-  outline: none; transition: border-color 0.15s; margin-bottom: 12px;
-}
-.qt-textarea:focus { border-color: #a5b4fc; }
-.qt-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.qt-controls label { font-size: 13px; color: #52525b; display: flex; align-items: center; gap: 8px; }
-.qt-select { padding: 6px 10px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; }
-.qt-number { width: 60px; padding: 6px 10px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; }
+    /* ===== STAT CARDS ===== */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
 
-.qt-section {
-  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
-  padding: 20px; margin-bottom: 14px;
-}
-.qt-section-label {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: #71717a;
-  margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
-}
-.qt-rewritten-text {
-  font-size: 14px; color: #18181b; line-height: 1.6;
-  background: #f9f9fb; padding: 12px; border-radius: 8px;
-}
+    .stat-card {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
 
-.chunk-item { border: 1px solid #f4f4f5; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
-.chunk-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; background: #fafafa; cursor: pointer;
-  transition: background 0.1s;
-}
-.chunk-header:hover { background: #f4f4f5; }
-.chunk-meta { font-size: 13px; color: #18181b; font-weight: 500; }
-.chunk-arrow { display: inline-block; transition: transform 0.18s; margin-left: 6px; }
-.chunk-item.open .chunk-arrow { transform: rotate(180deg); }
-.chunk-dist { display: flex; align-items: center; gap: 8px; }
-.dist-score { font-size: 12px; font-family: monospace; }
-.dist-bar { width: 56px; height: 6px; border-radius: 3px; background: #e4e4e7; }
-.dist-fill { height: 100%; border-radius: 3px; }
-.chunk-body {
-  display: none; padding: 12px 14px;
-  font-size: 13px; color: #52525b; line-height: 1.6;
-  white-space: pre-wrap; border-top: 1px solid #f4f4f5;
-}
-.chunk-item.open .chunk-body { display: block; }
+    .sc-value {
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
 
-.qt-context-pre {
-  font-size: 12px; background: #f9f9fb; border-radius: 8px;
-  padding: 14px; white-space: pre-wrap; word-break: break-word;
-  max-height: 400px; overflow-y: auto; color: #52525b; line-height: 1.6;
-  margin-top: 10px;
-}
+    .sc-label {
+      font-size: 12px;
+      color: #71717a;
+    }
 
-/* ─── Scope badge ─────────────────────────────────────────────────────────── */
-.scope-badge {
-  display: inline-block; padding: 2px 8px; border-radius: 99px;
-  font-size: 11px; font-weight: 500;
-}
-.scope-global  { background: #eff6ff; color: #2563eb; }
-.scope-session { background: #faf5ff; color: #7c3aed; }
+    /* ===== TWO-COL LAYOUT ===== */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 20px;
+    }
 
-/* ─── Toast ───────────────────────────────────────────────────────────────── */
-#toast-container {
-  position: fixed; top: 20px; right: 20px; z-index: 9999;
-  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
-}
-.toast {
-  background: #fff; border: 1px solid #e4e4e7; border-radius: 8px;
-  padding: 10px 16px; font-size: 13px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
-  display: flex; align-items: center; gap: 8px; min-width: 240px;
-  animation: toastIn 0.2s ease;
-}
-.toast.success { border-left: 3px solid #22c55e; }
-.toast.error   { border-left: 3px solid #ef4444; }
-@keyframes toastIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-</style>
+    /* ===== SECTION BLOCK ===== */
+    .section-block {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .section-block:last-child {
+      margin-bottom: 0;
+    }
+
+    .sb-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .sb-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #18181b;
+    }
+
+    .sb-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .sb-btn:hover { background: var(--accent-hover); }
+
+    .sb-btn-outline {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 7px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .sb-btn-outline:hover { background: rgba(99,102,241,0.06); }
+
+    /* ===== TABLE ===== */
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .admin-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #e4e4e7;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #71717a;
+    }
+
+    .admin-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #f4f4f5;
+      color: #18181b;
+      vertical-align: middle;
+    }
+
+    .admin-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .admin-table tr:hover td {
+      background: #fafafa;
+    }
+
+    .tbl-delete-btn {
+      background: none;
+      border: none;
+      color: #a1a1aa;
+      cursor: pointer;
+      font-size: 15px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.12s;
+    }
+
+    .tbl-delete-btn:hover { color: #ef4444; }
+
+    .badge-scope {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 99px;
+      text-transform: uppercase;
+    }
+
+    .badge-scope.global { background: #ede9fe; color: #6d28d9; }
+    .badge-scope.session { background: #dbeafe; color: #1d4ed8; }
+
+    /* ===== SYS INFO ===== */
+    .sys-info {
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .sys-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      font-size: 12px;
+      border-bottom: 1px solid #f4f4f5;
+    }
+
+    .sys-row:last-child { border-bottom: none; }
+
+    .sys-key { color: #71717a; }
+    .sys-val { color: #18181b; font-weight: 500; text-align: right; max-width: 160px; word-break: break-all; }
+
+    .reindex-btn {
+      width: 100%;
+      margin-top: 14px;
+      padding: 8px;
+      background: transparent;
+      border: 1px solid #e4e4e7;
+      border-radius: 7px;
+      font-size: 13px;
+      color: #71717a;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .reindex-btn:hover { background: #fafafa; border-color: var(--accent); color: var(--accent); }
+
+    .status-msg {
+      font-size: 12px;
+      margin-top: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none;
+    }
+
+    .status-msg.ok { background: #dcfce7; color: #166534; display: block; }
+    .status-msg.err { background: #fee2e2; color: #991b1b; display: block; }
+
+    /* ===== SESSIONS ===== */
+    .sessions-search {
+      width: 300px;
+      border: 1px solid #e4e4e7;
+      border-radius: 7px;
+      padding: 7px 12px;
+      font-size: 13px;
+      outline: none;
+      margin-bottom: 16px;
+      color: #18181b;
+      background: #fff;
+    }
+
+    .sessions-search:focus { border-color: var(--accent); }
+
+    .section-block.no-pad {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .tbl-chat-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .tbl-chat-link:hover { text-decoration: underline; }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .pagination-info {
+      font-size: 12px;
+      color: #71717a;
+      margin-right: 8px;
+    }
+
+    .page-btn {
+      background: transparent;
+      border: 1px solid #e4e4e7;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #71717a;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .page-btn:hover { background: #fafafa; }
+    .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ===== QUERY TESTER ===== */
+    .qt-form {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .qt-textarea {
+      width: 100%;
+      border: 1px solid #e4e4e7;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+      color: #18181b;
+      margin-bottom: 12px;
+    }
+
+    .qt-textarea:focus { border-color: var(--accent); }
+
+    .qt-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .qt-select {
+      border: 1px solid #e4e4e7;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 13px;
+      color: #18181b;
+      background: #fff;
+      outline: none;
+      cursor: pointer;
+      min-width: 180px;
+    }
+
+    .qt-select:focus { border-color: var(--accent); }
+
+    .qt-topk {
+      border: 1px solid #e4e4e7;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 13px;
+      color: #18181b;
+      background: #fff;
+      outline: none;
+      width: 80px;
+    }
+
+    .qt-topk:focus { border-color: var(--accent); }
+
+    .qt-run-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .qt-run-btn:hover { background: var(--accent-hover); }
+
+    .qt-spinner {
+      display: none;
+      font-size: 13px;
+      color: #71717a;
+      padding: 12px 0;
+    }
+
+    .qt-spinner.visible { display: block; }
+
+    #qt-results {
+      display: none;
+    }
+
+    #qt-results.visible { display: block; }
+
+    .qt-section {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+
+    .qt-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #71717a;
+      margin-bottom: 10px;
+    }
+
+    .qt-rewritten {
+      font-size: 14px;
+      color: #18181b;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-style: italic;
+    }
+
+    .chunk-item {
+      border: 1px solid #e4e4e7;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+
+    .chunk-header {
+      padding: 10px 14px;
+      background: #fafafa;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .chunk-header:hover { background: #f4f4f5; }
+
+    .chunk-header-left {
+      font-size: 12px;
+      font-weight: 500;
+      color: #3f3f46;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chunk-body {
+      display: none;
+      padding: 12px 14px;
+      font-size: 13px;
+      white-space: pre-wrap;
+      border-top: 1px solid #e4e4e7;
+      color: #3f3f46;
+      line-height: 1.6;
+    }
+
+    .chunk-item.open .chunk-body { display: block; }
+
+    .dist-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .dist-bar {
+      width: 40px;
+      height: 6px;
+      border-radius: 99px;
+      background: #e4e4e7;
+      overflow: hidden;
+    }
+
+    .dist-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.2s;
+    }
+
+    .dist-fill.green { background: #22c55e; }
+    .dist-fill.yellow { background: #eab308; }
+    .dist-fill.red { background: #ef4444; }
+
+    .dist-text {
+      font-size: 11px;
+      font-weight: 600;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .dist-text.green { color: #166534; }
+    .dist-text.yellow { color: #854d0e; }
+    .dist-text.red { color: #991b1b; }
+
+    .qt-context-toggle {
+      background: none;
+      border: 1px solid #e4e4e7;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #71717a;
+      margin-bottom: 10px;
+      transition: background 0.12s;
+    }
+
+    .qt-context-toggle:hover { background: #fafafa; }
+
+    .qt-context-pre {
+      max-height: 400px;
+      overflow-y: auto;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #3f3f46;
+      border: 1px solid #e4e4e7;
+      display: none;
+    }
+
+    .qt-context-pre.visible { display: block; }
+
+    /* ===== TOAST ===== */
+    #toast-container {
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #18181b;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      min-width: 220px;
+      border-left: 3px solid #e4e4e7;
+      animation: slideInToast 0.2s ease;
+    }
+
+    .toast.success { border-left-color: #22c55e; }
+    .toast.error { border-left-color: #ef4444; }
+
+    @keyframes slideInToast {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .empty-table-msg {
+      font-size: 13px;
+      color: #71717a;
+      padding: 16px 10px;
+    }
+
+    .loading-msg {
+      font-size: 13px;
+      color: #71717a;
+      padding: 12px 0;
+    }
+  </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════ SIDEBAR -->
-<aside id="admin-nav">
-  <div class="an-header">
-    <span class="an-title">Clinical RAG</span>
-    <span class="an-sub">Admin Panel</span>
+<div id="admin-nav">
+  <div class="nav-header">
+    <div class="nav-header-title">Clinical RAG</div>
+    <div class="nav-header-sub">Admin Panel</div>
   </div>
-  <nav>
-    <button class="an-link active" data-tab="overview"    onclick="switchTab('overview')">📊 Overview</button>
-    <button class="an-link"        data-tab="documents"   onclick="switchTab('documents')">📄 Documents</button>
-    <button class="an-link"        data-tab="sessions"    onclick="switchTab('sessions')">💬 Sessions</button>
-    <button class="an-link"        data-tab="querytester" onclick="switchTab('querytester')">🔍 Query Tester</button>
-  </nav>
-  <div class="an-footer">
-    <a href="/" class="an-back">← Back to Chat</a>
-  </div>
-</aside>
 
-<!-- ═══════════════════════════════ MAIN -->
-<main id="admin-main">
+  <div class="nav-items">
+    <button class="nav-btn active" data-tab="overview" onclick="switchTab('overview')">
+      <span class="nav-icon">&#128202;</span> Overview
+    </button>
+    <button class="nav-btn" data-tab="documents" onclick="switchTab('documents')">
+      <span class="nav-icon">&#128196;</span> Documents
+    </button>
+    <button class="nav-btn" data-tab="sessions" onclick="switchTab('sessions')">
+      <span class="nav-icon">&#128172;</span> Sessions
+    </button>
+    <button class="nav-btn" data-tab="querytester" onclick="switchTab('querytester')">
+      <span class="nav-icon">&#128269;</span> Query Tester
+    </button>
+  </div>
+
+  <div class="nav-footer">
+    <a href="/">&larr; Back to Chat</a>
+  </div>
+</div>
+
+<div id="admin-main">
   <div id="admin-header">
     <h1 id="tab-title">Overview</h1>
   </div>
 
   <div class="tab-content">
 
-    <!-- ── TAB: Overview ── -->
+    <!-- TAB: OVERVIEW -->
     <div id="tab-overview" class="tab-panel active">
-      <div class="stat-cards">
-        <div class="stat-card"><div class="sc-value" id="st-total-chunks">—</div><div class="sc-label">Total Chunks</div></div>
-        <div class="stat-card"><div class="sc-value" id="st-global-chunks">—</div><div class="sc-label">Global Chunks</div></div>
-        <div class="stat-card"><div class="sc-value" id="st-total-chats">—</div><div class="sc-label">Total Chats</div></div>
-        <div class="stat-card"><div class="sc-value" id="st-total-messages">—</div><div class="sc-label">Total Messages</div></div>
-      </div>
-      <div class="ov-columns">
-        <div class="section-block">
-          <h2 class="section-title">Indexed Documents</h2>
-          <table class="data-table">
-            <thead><tr><th>Filename</th><th>Chunks</th><th>Scope</th><th></th></tr></thead>
-            <tbody id="ov-docs-table">
-              <tr><td colspan="4" class="table-empty">Loading…</td></tr>
-            </tbody>
-          </table>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="sc-value" id="st-total-chunks">—</div>
+          <div class="sc-label">Total Chunks</div>
         </div>
+        <div class="stat-card">
+          <div class="sc-value" id="st-global-chunks">—</div>
+          <div class="sc-label">Global KB Chunks</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-value" id="st-total-chats">—</div>
+          <div class="sc-label">Total Chats</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-value" id="st-total-messages">—</div>
+          <div class="sc-label">Total Messages</div>
+        </div>
+      </div>
+
+      <div class="two-col">
         <div>
           <div class="section-block">
-            <h2 class="section-title">System</h2>
-            <div class="sys-info">
-              <div class="si-row"><span class="si-key">Cache Backend</span><span class="si-val" id="si-cache">—</span></div>
-              <div class="si-row"><span class="si-key">Storage Dir</span><span class="si-val" id="si-storage">—</span></div>
-              <div class="si-row"><span class="si-key">Vector DB</span><span class="si-val">ChromaDB</span></div>
-              <div class="si-row"><span class="si-key">Session Chunks</span><span class="si-val" id="si-session-chunks">—</span></div>
+            <div class="sb-header">
+              <div class="sb-title">Documents in Knowledge Base</div>
             </div>
-            <button class="btn-primary" id="reindex-btn" onclick="adminReindex()">🔄 Re-index All</button>
-            <div id="reindex-status" style="display:none"></div>
+            <div id="overview-docs-list">
+              <div class="loading-msg">Loading...</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-block">
+            <div class="sb-header">
+              <div class="sb-title">System Info</div>
+            </div>
+            <div class="sys-info" id="sys-info-block">
+              <div class="sys-row">
+                <span class="sys-key">Cache Backend</span>
+                <span class="sys-val" id="si-cache">—</span>
+              </div>
+              <div class="sys-row">
+                <span class="sys-key">Storage Dir</span>
+                <span class="sys-val" id="si-storage">—</span>
+              </div>
+              <div class="sys-row">
+                <span class="sys-key">Vector DB</span>
+                <span class="sys-val">ChromaDB</span>
+              </div>
+              <div class="sys-row">
+                <span class="sys-key">Session Chunks</span>
+                <span class="sys-val" id="si-session-chunks">—</span>
+              </div>
+            </div>
+            <button class="reindex-btn" onclick="reindexAll()">&#128260; Re-index All</button>
+            <div class="status-msg" id="reindex-status"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ── TAB: Documents ── -->
+    <!-- TAB: DOCUMENTS -->
     <div id="tab-documents" class="tab-panel">
       <div class="section-block">
         <div class="sb-header">
-          <h2 class="section-title" style="margin-bottom:0">Knowledge Base</h2>
-          <button class="btn-secondary" onclick="document.getElementById('kb-upload-input').click()">+ Upload PDF</button>
-          <input type="file" id="kb-upload-input" accept=".pdf" style="display:none" onchange="uploadKbFile()" />
+          <div class="sb-title">Knowledge Base Documents</div>
+          <button class="sb-btn" onclick="document.getElementById('admin-kb-upload').click()">+ Upload PDF</button>
+          <input type="file" id="admin-kb-upload" accept=".pdf" style="display:none;" onchange="adminKbUpload(this)" />
         </div>
-        <p class="section-note">Global documents available to all chats (session_id = "global").</p>
-        <table class="data-table">
-          <thead><tr><th>Filename</th><th>Chunks</th><th></th></tr></thead>
-          <tbody id="kb-docs-table">
-            <tr><td colspan="3" class="table-empty">Loading…</td></tr>
-          </tbody>
-        </table>
+        <div id="docs-tab-kb-list">
+          <div class="loading-msg">Loading...</div>
+        </div>
       </div>
+
       <div class="section-block">
-        <h2 class="section-title">Session Documents</h2>
-        <p class="section-note">Documents uploaded to specific chat sessions. To delete, use the Sessions tab.</p>
-        <table class="data-table">
-          <thead><tr><th>Chat Title</th><th>Filename</th><th>Chunks</th><th>Chat ID</th></tr></thead>
-          <tbody id="session-docs-table">
-            <tr><td colspan="4" class="table-empty">Loading…</td></tr>
-          </tbody>
-        </table>
+        <div class="sb-header">
+          <div class="sb-title">Session Documents</div>
+        </div>
+        <div id="docs-tab-session-list">
+          <div class="loading-msg">Loading...</div>
+        </div>
       </div>
     </div>
 
-    <!-- ── TAB: Sessions ── -->
+    <!-- TAB: SESSIONS -->
     <div id="tab-sessions" class="tab-panel">
-      <div class="sess-controls">
-        <input type="text" id="sess-search" placeholder="Search by title…"
-               oninput="filterSessions()" class="search-input" />
+      <input type="text" class="sessions-search" id="sessions-search" placeholder="Search sessions by title..." oninput="filterSessions(this.value)" />
+
+      <div class="section-block no-pad">
+        <div id="sessions-table-wrap">
+          <div class="loading-msg" style="padding:16px 20px;">Loading...</div>
+        </div>
       </div>
-      <div class="section-block" style="padding:0;overflow:hidden">
-        <table class="data-table">
-          <thead>
-            <tr><th>Title</th><th>Messages</th><th>Docs</th><th>Created</th><th>Last Active</th><th></th></tr>
-          </thead>
-          <tbody id="sessions-table">
-            <tr><td colspan="6" class="table-empty" style="padding:16px">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div id="sessions-pagination" class="pagination"></div>
+
+      <div class="pagination" id="sessions-pagination"></div>
     </div>
 
-    <!-- ── TAB: Query Tester ── -->
+    <!-- TAB: QUERY TESTER -->
     <div id="tab-querytester" class="tab-panel">
       <div class="qt-form">
-        <textarea id="qt-question" rows="3"
-          placeholder="Enter a question to debug retrieval…" class="qt-textarea"></textarea>
+        <textarea class="qt-textarea" id="qt-question" rows="3" placeholder="Enter a question to debug retrieval..."></textarea>
         <div class="qt-controls">
-          <label>Session scope:
-            <select id="qt-session" class="qt-select">
-              <option value="global">global</option>
-            </select>
-          </label>
-          <label>Top K:
-            <input type="number" id="qt-topk" value="5" min="1" max="20" class="qt-number" />
-          </label>
-          <button class="btn-primary" id="qt-run-btn" onclick="runQueryDebug()">Run →</button>
+          <select class="qt-select" id="qt-session">
+            <option value="">Global scope</option>
+          </select>
+          <input type="number" class="qt-topk" id="qt-topk" value="5" min="1" max="20" placeholder="Top K" title="Top K" />
+          <button class="qt-run-btn" onclick="runQueryTest()">Run &#8594;</button>
         </div>
       </div>
-      <div id="qt-loading" style="display:none" class="loading-msg">Fetching retrieval results…</div>
-      <div id="qt-results" style="display:none">
+
+      <div class="qt-spinner" id="qt-spinner">Fetching retrieval results...</div>
+
+      <div id="qt-results">
         <div class="qt-section">
-          <div class="qt-section-label">Rewritten Query</div>
-          <div id="qt-rewritten" class="qt-rewritten-text"></div>
+          <div class="qt-section-title">REWRITTEN QUERY</div>
+          <div class="qt-rewritten" id="qt-rewritten-text">—</div>
         </div>
+
         <div class="qt-section">
-          <div class="qt-section-label">
-            Retrieved Chunks (<span id="qt-chunk-count">0</span>)
-          </div>
-          <div id="qt-chunks"></div>
+          <div class="qt-section-title">RETRIEVED CHUNKS</div>
+          <div id="qt-chunks-list"></div>
         </div>
+
         <div class="qt-section">
-          <div class="qt-section-label">
-            Context Sent to LLM
-            <button class="btn-text" onclick="toggleContext()">▾ Show / Hide</button>
-          </div>
-          <pre id="qt-context" style="display:none" class="qt-context-pre"></pre>
+          <div class="qt-section-title">CONTEXT SENT TO LLM</div>
+          <button class="qt-context-toggle" id="qt-context-toggle" onclick="toggleContext()">&#9662; Show / Hide</button>
+          <pre class="qt-context-pre" id="qt-context-pre"></pre>
         </div>
       </div>
     </div>
 
-  </div><!-- /tab-content -->
-</main>
+  </div>
+</div>
 
 <div id="toast-container"></div>
 
 <script>
-const API_KEY  = "dev-key-123";
-const BASE     = window.location.origin;
-const AUTH     = { "X-API-Key": API_KEY };
-const AUTHJSON = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
+  var API_KEY = "dev-key-123";
+  var BASE = window.location.origin;
+  var AUTH = { "X-API-Key": API_KEY };
+  var AUTHJSON = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
 
-const PAGE_SIZE = 20;
-let allSessions      = [];
-let filteredSessions = [];
-let currentPage      = 0;
+  var allSessions = [];
+  var filteredSessions = [];
+  var currentPage = 1;
+  var PAGE_SIZE = 20;
+  var statsData = null;
 
-// ── Tab navigation ─────────────────────────────────────────────────────────
-const TAB_TITLES = {
-  overview:    "Overview",
-  documents:   "Documents",
-  sessions:    "Sessions",
-  querytester: "Query Tester",
-};
+  var TAB_TITLES = {
+    overview: "Overview",
+    documents: "Documents",
+    sessions: "Sessions",
+    querytester: "Query Tester",
+  };
 
-function switchTab(tab) {
-  document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
-  document.querySelectorAll(".an-link").forEach(el => el.classList.remove("active"));
-  document.getElementById(`tab-${tab}`).classList.add("active");
-  document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
-  document.getElementById("tab-title").textContent = TAB_TITLES[tab];
-  if (tab === "overview")    loadStats();
-  if (tab === "documents")   loadDocumentsTab();
-  if (tab === "sessions")    loadSessions();
-  if (tab === "querytester") loadSessionsForQT();
-}
+  // ===== TOAST =====
+  function showToast(msg, type) {
+    var container = document.getElementById("toast-container");
+    var toast = document.createElement("div");
+    toast.className = "toast " + (type || "");
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(function() {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 4000);
+  }
 
-// ── Init ───────────────────────────────────────────────────────────────────
-(function init() { loadStats(); })();
+  // ===== HTML ESCAPE =====
+  function esc(str) {
+    if (str == null) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
 
-// ── OVERVIEW ───────────────────────────────────────────────────────────────
-async function loadStats() {
-  try {
-    const r = await fetch(`${BASE}/admin/stats`, { headers: AUTH });
-    if (!r.ok) throw new Error(await r.text());
-    const d = await r.json();
-
-    document.getElementById("st-total-chunks").textContent   = d.total_chunks;
-    document.getElementById("st-global-chunks").textContent  = d.global_chunks;
-    document.getElementById("st-total-chats").textContent    = d.total_chats;
-    document.getElementById("st-total-messages").textContent = d.total_messages;
-    document.getElementById("si-cache").textContent          = d.cache_backend;
-    document.getElementById("si-storage").textContent        = d.storage_dir;
-    document.getElementById("si-session-chunks").textContent = d.session_chunks;
-
-    const tbody = document.getElementById("ov-docs-table");
-    if (!d.documents.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="table-empty" style="padding:12px">No documents indexed.</td></tr>';
-    } else {
-      tbody.innerHTML = d.documents.map(doc => `
-        <tr>
-          <td>${esc(doc.source)}</td>
-          <td>${doc.chunk_count}</td>
-          <td><span class="scope-badge scope-global">global</span></td>
-          <td><button class="btn-danger" onclick="deleteKbDoc('${esc(doc.source)}')">🗑</button></td>
-        </tr>`).join("");
+  // ===== DATE FORMAT =====
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    try {
+      var str = iso.endsWith("Z") ? iso : iso + "Z";
+      var d = new Date(str);
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    } catch(e) {
+      return iso;
     }
-  } catch (err) {
-    showToast("Failed to load stats: " + err.message, "error");
   }
-}
 
-async function adminReindex() {
-  const btn    = document.getElementById("reindex-btn");
-  const status = document.getElementById("reindex-status");
-  btn.disabled = true; btn.textContent = "Reindexing…";
-  status.style.display = "none";
-  try {
-    const r = await fetch(`${BASE}/admin/reindex`, { method: "POST", headers: AUTH });
-    const d = await r.json();
-    status.className = "status-ok";
-    status.textContent = `✓ Started for ${d.files.length} file(s)${d.files.length ? ": " + d.files.join(", ") : ""}`;
-    status.style.display = "block";
-    showToast("Reindexing started in background", "success");
-  } catch (err) {
-    showToast("Reindex failed: " + err.message, "error");
-  } finally {
-    btn.disabled = false; btn.textContent = "🔄 Re-index All";
+  function fmtDateTime(iso) {
+    if (!iso) return "—";
+    try {
+      var str = iso.endsWith("Z") ? iso : iso + "Z";
+      var d = new Date(str);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
+        d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    } catch(e) {
+      return iso;
+    }
   }
-}
 
-// ── DOCUMENTS TAB ──────────────────────────────────────────────────────────
-async function loadDocumentsTab() {
-  await Promise.all([loadKbDocs(), loadSessionDocs()]);
-}
+  // ===== TAB SWITCH =====
+  function switchTab(tab) {
+    document.querySelectorAll(".tab-panel").forEach(function(p) { p.classList.remove("active"); });
+    document.querySelectorAll(".nav-btn").forEach(function(b) { b.classList.remove("active"); });
+    document.getElementById("tab-" + tab).classList.add("active");
+    document.querySelector('[data-tab="' + tab + '"]').classList.add("active");
+    document.getElementById("tab-title").textContent = TAB_TITLES[tab] || tab;
 
-async function loadKbDocs() {
-  const tbody = document.getElementById("kb-docs-table");
-  tbody.innerHTML = '<tr><td colspan="3" class="table-empty">Loading…</td></tr>';
-  try {
-    const r    = await fetch(`${BASE}/admin/documents`, { headers: AUTH });
-    const docs = await r.json();
+    if (tab === "overview") loadStats();
+    else if (tab === "documents") loadDocsTab();
+    else if (tab === "sessions") loadSessionsTab();
+    else if (tab === "querytester") loadQueryTesterSessions();
+  }
+
+  // ===== OVERVIEW =====
+  async function loadStats() {
+    try {
+      var res = await fetch(BASE + "/admin/stats", { headers: AUTH });
+      statsData = await res.json();
+      renderOverview(statsData);
+    } catch(e) {
+      showToast("Failed to load stats.", "error");
+    }
+  }
+
+  function renderOverview(data) {
+    document.getElementById("st-total-chunks").textContent = (data.total_chunks != null ? data.total_chunks : "—");
+    document.getElementById("st-global-chunks").textContent = (data.global_chunks != null ? data.global_chunks : (data.kb_chunks != null ? data.kb_chunks : "—"));
+    document.getElementById("st-total-chats").textContent = (data.total_chats != null ? data.total_chats : "—");
+    document.getElementById("st-total-messages").textContent = (data.total_messages != null ? data.total_messages : "—");
+
+    document.getElementById("si-cache").textContent = data.cache_backend || data.cache || "—";
+    document.getElementById("si-storage").textContent = data.storage_dir || data.upload_dir || "—";
+    document.getElementById("si-session-chunks").textContent = (data.session_chunks != null ? data.session_chunks : "—");
+
+    var docs = data.documents || [];
+    var container = document.getElementById("overview-docs-list");
     if (!docs.length) {
-      tbody.innerHTML = '<tr><td colspan="3" class="table-empty" style="padding:12px">No documents in knowledge base.</td></tr>';
+      container.innerHTML = '<div class="empty-table-msg">No documents found.</div>';
       return;
     }
-    tbody.innerHTML = docs.map(d => `
-      <tr>
-        <td>${esc(d.source)}</td>
-        <td>${d.chunk_count}</td>
-        <td><button class="btn-danger" onclick="deleteKbDoc('${esc(d.source)}')">🗑 Delete</button></td>
-      </tr>`).join("");
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="3" class="table-empty">Error: ${esc(err.message)}</td></tr>`;
+    var html = '<table class="admin-table">' +
+      '<thead><tr><th>Filename</th><th>Chunks</th><th>Scope</th><th>Actions</th></tr></thead><tbody>';
+    docs.forEach(function(d) {
+      var name = d.filename || d.name || "—";
+      var chunks = d.chunks || d.chunk_count || "—";
+      var scope = d.scope || "global";
+      html += '<tr>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + chunks + '</td>' +
+        '<td><span class="badge-scope ' + esc(scope) + '">' + esc(scope) + '</span></td>' +
+        '<td><button class="tbl-delete-btn" onclick="overviewDeleteDoc(\'' + esc(name).replace(/'/g,"&#39;") + '\')">&#128465;</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
   }
-}
 
-async function deleteKbDoc(filename) {
-  if (!confirm(`Delete all chunks for "${filename}"? This cannot be undone.`)) return;
-  try {
-    const r = await fetch(
-      `${BASE}/admin/documents?filename=${encodeURIComponent(filename)}`,
-      { method: "DELETE", headers: AUTH }
-    );
-    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    const d = await r.json();
-    showToast(`Deleted ${d.chunks_removed} chunks for "${filename}"`, "success");
-    loadStats();
-    loadKbDocs();
-  } catch (err) {
-    showToast("Delete failed: " + err.message, "error");
-  }
-}
-
-async function uploadKbFile() {
-  const input = document.getElementById("kb-upload-input");
-  const file  = input.files[0];
-  if (!file) return;
-  input.value = "";
-  const form = new FormData();
-  form.append("file", file);
-  try {
-    showToast(`Uploading ${file.name}…`, "success");
-    const r = await fetch(`${BASE}/upload`, { method: "POST", headers: AUTH, body: form });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.detail); }
-    showToast(`${file.name} uploaded — indexing in background`, "success");
-    setTimeout(loadKbDocs, 5000);
-    setTimeout(loadStats,  5000);
-  } catch (err) {
-    showToast("Upload failed: " + err.message, "error");
-  }
-}
-
-async function loadSessionDocs() {
-  const tbody = document.getElementById("session-docs-table");
-  tbody.innerHTML = '<tr><td colspan="4" class="table-empty">Loading…</td></tr>';
-  try {
-    const sessR    = await fetch(`${BASE}/admin/sessions`, { headers: AUTH });
-    const sessions = await sessR.json();
-    const rows     = [];
-    await Promise.all(sessions.filter(s => s.document_count > 0).map(async s => {
-      try {
-        const r    = await fetch(`${BASE}/chats/${s.id}/documents`, { headers: AUTH });
-        const docs = await r.json();
-        docs.forEach(d => rows.push({ title: s.title, id: s.id, source: d.source, chunk_count: d.chunk_count }));
-      } catch {}
-    }));
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="table-empty" style="padding:12px">No session documents found.</td></tr>';
-      return;
+  async function overviewDeleteDoc(filename) {
+    if (!confirm('Delete "' + filename + '" from knowledge base?')) return;
+    try {
+      await fetch(BASE + "/admin/documents?filename=" + encodeURIComponent(filename), {
+        method: "DELETE", headers: AUTH
+      });
+      showToast("Document deleted.", "success");
+      loadStats();
+    } catch(e) {
+      showToast("Delete failed.", "error");
     }
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</td>
-        <td>${esc(r.source)}</td>
-        <td>${r.chunk_count}</td>
-        <td><code style="font-size:11px;color:#71717a">${r.id.slice(0, 8)}…</code></td>
-      </tr>`).join("");
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="4" class="table-empty">Error: ${esc(err.message)}</td></tr>`;
-  }
-}
-
-// ── SESSIONS TAB ───────────────────────────────────────────────────────────
-async function loadSessions() {
-  const tbody = document.getElementById("sessions-table");
-  tbody.innerHTML = '<tr><td colspan="6" class="table-empty" style="padding:16px">Loading…</td></tr>';
-  try {
-    const r   = await fetch(`${BASE}/admin/sessions`, { headers: AUTH });
-    allSessions      = await r.json();
-    filteredSessions = [...allSessions];
-    currentPage      = 0;
-    renderSessionsPage();
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="padding:16px">Error: ${esc(err.message)}</td></tr>`;
-  }
-}
-
-function filterSessions() {
-  const q          = document.getElementById("sess-search").value.toLowerCase();
-  filteredSessions = q ? allSessions.filter(s => s.title.toLowerCase().includes(q)) : [...allSessions];
-  currentPage      = 0;
-  renderSessionsPage();
-}
-
-function renderSessionsPage() {
-  const tbody      = document.getElementById("sessions-table");
-  const pagination = document.getElementById("sessions-pagination");
-  const start      = currentPage * PAGE_SIZE;
-  const page       = filteredSessions.slice(start, start + PAGE_SIZE);
-
-  if (!page.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="table-empty" style="padding:16px">No sessions found.</td></tr>';
-    pagination.innerHTML = "";
-    return;
   }
 
-  tbody.innerHTML = page.map(s => `
-    <tr>
-      <td>
-        <a href="/" target="_blank"
-           style="color:var(--accent);text-decoration:none;font-weight:500"
-           title="${esc(s.title)}">${esc(s.title.length > 48 ? s.title.slice(0, 48) + "…" : s.title)}</a>
-      </td>
-      <td>${s.message_count}</td>
-      <td>${s.document_count}</td>
-      <td>${fmtDate(s.created_at)}</td>
-      <td>${fmtDate(s.updated_at)}</td>
-      <td><button class="btn-danger" onclick="deleteSession('${s.id}')">🗑</button></td>
-    </tr>`).join("");
-
-  const totalPages = Math.ceil(filteredSessions.length / PAGE_SIZE);
-  if (totalPages <= 1) { pagination.innerHTML = ""; return; }
-
-  let html = `<span style="color:#71717a">${filteredSessions.length} sessions · page ${currentPage + 1}/${totalPages}</span>`;
-  html += `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 0 ? "disabled" : ""}>‹ Prev</button>`;
-  for (let i = 0; i < Math.min(totalPages, 10); i++) {
-    html += `<button class="page-btn${i === currentPage ? " active" : ""}" onclick="goPage(${i})">${i + 1}</button>`;
+  async function reindexAll() {
+    var statusEl = document.getElementById("reindex-status");
+    statusEl.className = "status-msg";
+    statusEl.style.display = "none";
+    try {
+      var res = await fetch(BASE + "/admin/reindex", { method: "POST", headers: AUTH });
+      var data = await res.json();
+      statusEl.textContent = data.message || "Re-index complete.";
+      statusEl.className = "status-msg ok";
+      showToast("Re-index complete.", "success");
+    } catch(e) {
+      statusEl.textContent = "Re-index failed.";
+      statusEl.className = "status-msg err";
+      showToast("Re-index failed.", "error");
+    }
   }
-  html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? "disabled" : ""}>Next ›</button>`;
-  pagination.innerHTML = html;
-}
 
-function goPage(p) { currentPage = p; renderSessionsPage(); }
-
-async function deleteSession(chatId) {
-  if (!confirm("Delete this session, all its messages, and its uploaded documents? This cannot be undone.")) return;
-  try {
-    const r = await fetch(`${BASE}/admin/sessions/${chatId}`, { method: "DELETE", headers: AUTH });
-    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    const d = await r.json();
-    showToast(`Session deleted. ${d.chunks_removed} chunks removed.`, "success");
-    loadSessions();
-  } catch (err) {
-    showToast("Delete failed: " + err.message, "error");
+  // ===== DOCUMENTS TAB =====
+  async function loadDocsTab() {
+    loadDocsTabKb();
+    loadDocsTabSessions();
   }
-}
 
-// ── QUERY TESTER ───────────────────────────────────────────────────────────
-async function loadSessionsForQT() {
-  try {
-    const r        = await fetch(`${BASE}/admin/sessions`, { headers: AUTH });
-    const sessions = await r.json();
-    const sel      = document.getElementById("qt-session");
-    const existing = new Set(Array.from(sel.options).map(o => o.value));
-    sessions.forEach(s => {
-      if (!existing.has(s.id)) {
-        const opt = new Option(
-          `${s.title.slice(0, 28)}… (${s.id.slice(0, 6)})`,
-          s.id
-        );
-        sel.appendChild(opt);
+  async function loadDocsTabKb() {
+    var container = document.getElementById("docs-tab-kb-list");
+    container.innerHTML = '<div class="loading-msg">Loading...</div>';
+    try {
+      var res = await fetch(BASE + "/admin/documents", { headers: AUTH });
+      var data = await res.json();
+      var docs = data.documents || data || [];
+      if (!Array.isArray(docs)) docs = [];
+      if (!docs.length) {
+        container.innerHTML = '<div class="empty-table-msg">No documents in knowledge base.</div>';
+        return;
       }
-    });
-  } catch {}
-}
-
-async function runQueryDebug() {
-  const question = document.getElementById("qt-question").value.trim();
-  if (!question) return;
-
-  const btn = document.getElementById("qt-run-btn");
-  btn.disabled = true;
-  document.getElementById("qt-loading").style.display  = "block";
-  document.getElementById("qt-results").style.display  = "none";
-
-  try {
-    const r = await fetch(`${BASE}/admin/query-debug`, {
-      method: "POST",
-      headers: AUTHJSON,
-      body: JSON.stringify({
-        question,
-        top_k:      parseInt(document.getElementById("qt-topk").value),
-        session_id: document.getElementById("qt-session").value,
-      }),
-    });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.detail || r.statusText); }
-    const data = await r.json();
-
-    document.getElementById("qt-rewritten").textContent    = data.rewritten_question;
-    document.getElementById("qt-chunk-count").textContent  = data.chunks_retrieved.length;
-    document.getElementById("qt-context").textContent      = data.context_sent_to_llm;
-    document.getElementById("qt-context").style.display    = "none";
-
-    document.getElementById("qt-chunks").innerHTML = data.chunks_retrieved.map((c, i) => {
-      const dist    = c.distance;
-      const color   = dist < 0.3 ? "#22c55e" : dist < 0.5 ? "#f59e0b" : "#ef4444";
-      const fillPct = Math.min(100, Math.round(dist * 100));
-      return `
-        <div class="chunk-item" onclick="this.classList.toggle('open')">
-          <div class="chunk-header">
-            <span class="chunk-meta">
-              #${i + 1} &nbsp; ${esc(c.source)} · p.${c.page} · ${esc(c.chunk_type)}
-              <span class="chunk-arrow">▾</span>
-            </span>
-            <span class="chunk-dist">
-              <span class="dist-score" style="color:${color}">dist: ${dist.toFixed(3)}</span>
-              <span class="dist-bar">
-                <span class="dist-fill" style="width:${fillPct}%;background:${color}"></span>
-              </span>
-            </span>
-          </div>
-          <div class="chunk-body">${esc(c.content_preview)}${c.content_preview.length >= 200 ? "…" : ""}</div>
-        </div>`;
-    }).join("");
-
-    document.getElementById("qt-results").style.display = "block";
-  } catch (err) {
-    showToast("Query debug failed: " + err.message, "error");
-  } finally {
-    btn.disabled = false;
-    document.getElementById("qt-loading").style.display = "none";
+      var html = '<table class="admin-table"><thead><tr><th>Filename</th><th>Chunks</th><th>Action</th></tr></thead><tbody>';
+      docs.forEach(function(d) {
+        var name = d.filename || d.name || "—";
+        var chunks = d.chunks || d.chunk_count || "—";
+        html += '<tr><td>' + esc(name) + '</td><td>' + chunks + '</td>' +
+          '<td><button class="tbl-delete-btn" onclick="docsTabDeleteKb(\'' + esc(name).replace(/'/g,"&#39;") + '\')">&#128465; Delete</button></td></tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '<div class="empty-table-msg">Failed to load.</div>';
+    }
   }
-}
 
-function toggleContext() {
-  const el = document.getElementById("qt-context");
-  el.style.display = el.style.display === "none" ? "block" : "none";
-}
+  async function docsTabDeleteKb(filename) {
+    if (!confirm('Delete "' + filename + '" from knowledge base?')) return;
+    try {
+      await fetch(BASE + "/admin/documents?filename=" + encodeURIComponent(filename), {
+        method: "DELETE", headers: AUTH
+      });
+      showToast("Deleted.", "success");
+      loadDocsTabKb();
+    } catch(e) {
+      showToast("Delete failed.", "error");
+    }
+  }
 
-// ── Shared helpers ─────────────────────────────────────────────────────────
-function showToast(msg, type = "success") {
-  const container = document.getElementById("toast-container");
-  const toast     = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = (type === "success" ? "✓  " : "✕  ") + msg;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4500);
-}
+  function adminKbUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    var formData = new FormData();
+    formData.append("file", file);
+    fetch(BASE + "/upload", { method: "POST", headers: AUTH, body: formData })
+      .then(function() { showToast("Uploaded.", "success"); loadDocsTabKb(); })
+      .catch(function() { showToast("Upload failed.", "error"); });
+    input.value = "";
+  }
 
-function esc(v) {
-  return String(v ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+  async function loadDocsTabSessions() {
+    var container = document.getElementById("docs-tab-session-list");
+    container.innerHTML = '<div class="loading-msg">Loading...</div>';
+    try {
+      var res = await fetch(BASE + "/admin/sessions", { headers: AUTH });
+      var sessions = await res.json();
+      if (!Array.isArray(sessions)) sessions = sessions.sessions || [];
+      if (!sessions.length) {
+        container.innerHTML = '<div class="empty-table-msg">No sessions found.</div>';
+        return;
+      }
 
-function fmtDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso.endsWith("Z") ? iso : iso + "Z")
-    .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
+      var rows = [];
+      for (var i = 0; i < sessions.length; i++) {
+        var sess = sessions[i];
+        var docCount = sess.doc_count || sess.document_count || 0;
+        if (!docCount) continue;
+        try {
+          var dres = await fetch(BASE + "/chats/" + sess.id + "/documents", { headers: AUTH });
+          var ddata = await dres.json();
+          var docs = ddata.documents || ddata || [];
+          if (!Array.isArray(docs)) docs = [];
+          docs.forEach(function(d) {
+            rows.push({
+              chatTitle: sess.title || "Untitled",
+              chatId: sess.id,
+              filename: d.filename || d.name || "—",
+              chunks: d.chunks || d.chunk_count || "—",
+            });
+          });
+        } catch(e2) {}
+      }
+
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty-table-msg">No session documents found.</div>';
+        return;
+      }
+
+      var html = '<table class="admin-table"><thead><tr><th>Chat Title</th><th>Filename</th><th>Chunks</th><th>Chat ID</th></tr></thead><tbody>';
+      rows.forEach(function(r) {
+        var shortId = r.chatId ? r.chatId.slice(0, 8) + "..." : "—";
+        html += '<tr>' +
+          '<td>' + esc(r.chatTitle) + '</td>' +
+          '<td>' + esc(r.filename) + '</td>' +
+          '<td>' + r.chunks + '</td>' +
+          '<td style="font-family:monospace;font-size:11px;color:#71717a;" title="' + esc(r.chatId) + '">' + esc(shortId) + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '<div class="empty-table-msg">Failed to load session documents.</div>';
+    }
+  }
+
+  // ===== SESSIONS TAB =====
+  async function loadSessionsTab() {
+    allSessions = [];
+    filteredSessions = [];
+    currentPage = 1;
+    document.getElementById("sessions-search").value = "";
+    document.getElementById("sessions-table-wrap").innerHTML = '<div class="loading-msg" style="padding:16px 20px;">Loading...</div>';
+    document.getElementById("sessions-pagination").innerHTML = "";
+
+    try {
+      var res = await fetch(BASE + "/admin/sessions", { headers: AUTH });
+      var data = await res.json();
+      allSessions = Array.isArray(data) ? data : (data.sessions || []);
+      filteredSessions = allSessions.slice();
+      renderSessionsTable();
+    } catch(e) {
+      document.getElementById("sessions-table-wrap").innerHTML = '<div class="loading-msg" style="padding:16px 20px;">Failed to load sessions.</div>';
+      showToast("Failed to load sessions.", "error");
+    }
+  }
+
+  function filterSessions(query) {
+    if (!query) {
+      filteredSessions = allSessions.slice();
+    } else {
+      var q = query.toLowerCase();
+      filteredSessions = allSessions.filter(function(s) {
+        return (s.title || "").toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    currentPage = 1;
+    renderSessionsTable();
+  }
+
+  function renderSessionsTable() {
+    var container = document.getElementById("sessions-table-wrap");
+    var paginationEl = document.getElementById("sessions-pagination");
+
+    if (!filteredSessions.length) {
+      container.innerHTML = '<div class="loading-msg" style="padding:16px 20px;">No sessions found.</div>';
+      paginationEl.innerHTML = "";
+      return;
+    }
+
+    var totalPages = Math.ceil(filteredSessions.length / PAGE_SIZE);
+    if (currentPage > totalPages) currentPage = totalPages;
+    var start = (currentPage - 1) * PAGE_SIZE;
+    var end = Math.min(start + PAGE_SIZE, filteredSessions.length);
+    var pageItems = filteredSessions.slice(start, end);
+
+    var html = '<table class="admin-table">' +
+      '<thead><tr><th>Title</th><th>Messages</th><th>Docs</th><th>Created</th><th>Last Active</th><th>Delete</th></tr></thead>' +
+      '<tbody>';
+    pageItems.forEach(function(s) {
+      var title = s.title || "Untitled";
+      var msgs = s.message_count || s.messages || 0;
+      var docs = s.doc_count || s.document_count || 0;
+      var created = fmtDate(s.created_at);
+      var lastActive = fmtDateTime(s.updated_at || s.last_active || s.created_at);
+      html += '<tr>' +
+        '<td><a class="tbl-chat-link" href="/" target="_blank">' + esc(title) + '</a></td>' +
+        '<td>' + msgs + '</td>' +
+        '<td>' + docs + '</td>' +
+        '<td>' + esc(created) + '</td>' +
+        '<td>' + esc(lastActive) + '</td>' +
+        '<td><button class="tbl-delete-btn" onclick="deleteSession(\'' + esc(s.id).replace(/'/g,"&#39;") + '\')">&#128465;</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    // Pagination
+    var pHtml = '<span class="pagination-info">' + filteredSessions.length + ' sessions &middot; page ' + currentPage + '/' + totalPages + '</span>';
+    pHtml += '<button class="page-btn" onclick="goPage(' + (currentPage - 1) + ')"' + (currentPage <= 1 ? ' disabled' : '') + '>Prev</button>';
+    var pageStart = Math.max(1, currentPage - 2);
+    var pageEnd = Math.min(totalPages, currentPage + 2);
+    for (var p = pageStart; p <= pageEnd; p++) {
+      pHtml += '<button class="page-btn' + (p === currentPage ? ' active' : '') + '" onclick="goPage(' + p + ')">' + p + '</button>';
+    }
+    pHtml += '<button class="page-btn" onclick="goPage(' + (currentPage + 1) + ')"' + (currentPage >= totalPages ? ' disabled' : '') + '>Next</button>';
+    paginationEl.innerHTML = pHtml;
+  }
+
+  function goPage(p) {
+    var totalPages = Math.ceil(filteredSessions.length / PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    currentPage = p;
+    renderSessionsTable();
+  }
+
+  async function deleteSession(sessionId) {
+    if (!confirm("Delete this chat session?")) return;
+    try {
+      await fetch(BASE + "/admin/sessions/" + sessionId, { method: "DELETE", headers: AUTH });
+      showToast("Session deleted.", "success");
+      allSessions = allSessions.filter(function(s) { return s.id !== sessionId; });
+      filteredSessions = filteredSessions.filter(function(s) { return s.id !== sessionId; });
+      renderSessionsTable();
+    } catch(e) {
+      showToast("Delete failed.", "error");
+    }
+  }
+
+  // ===== QUERY TESTER =====
+  async function loadQueryTesterSessions() {
+    var select = document.getElementById("qt-session");
+    select.innerHTML = '<option value="">Global scope</option>';
+    try {
+      var res = await fetch(BASE + "/admin/sessions", { headers: AUTH });
+      var data = await res.json();
+      var sessions = Array.isArray(data) ? data : (data.sessions || []);
+      sessions.forEach(function(s) {
+        var opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = (s.title || "Untitled") + " (" + s.id.slice(0, 8) + "...)";
+        select.appendChild(opt);
+      });
+    } catch(e) {
+      // ignore
+    }
+  }
+
+  async function runQueryTest() {
+    var question = document.getElementById("qt-question").value.trim();
+    if (!question) { showToast("Please enter a question.", "error"); return; }
+
+    var sessionId = document.getElementById("qt-session").value;
+    var topK = parseInt(document.getElementById("qt-topk").value, 10) || 5;
+
+    document.getElementById("qt-spinner").classList.add("visible");
+    document.getElementById("qt-results").classList.remove("visible");
+
+    try {
+      var body = { question: question, top_k: topK };
+      if (sessionId) body.chat_id = sessionId;
+
+      var res = await fetch(BASE + "/admin/debug-query", {
+        method: "POST",
+        headers: AUTHJSON,
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        var errData = await res.json().catch(function() { return {}; });
+        throw new Error(errData.detail || "HTTP " + res.status);
+      }
+
+      var data = await res.json();
+      renderQueryResults(data);
+      document.getElementById("qt-results").classList.add("visible");
+    } catch(err) {
+      showToast("Query test failed: " + err.message, "error");
+    } finally {
+      document.getElementById("qt-spinner").classList.remove("visible");
+    }
+  }
+
+  function renderQueryResults(data) {
+    // Rewritten query
+    var rewritten = data.rewritten_question || data.rewritten || question || "—";
+    document.getElementById("qt-rewritten-text").textContent = rewritten;
+
+    // Chunks
+    var chunks = data.chunks || data.results || data.retrieved_chunks || [];
+    var chunksContainer = document.getElementById("qt-chunks-list");
+    if (!chunks.length) {
+      chunksContainer.innerHTML = '<div class="empty-table-msg">No chunks retrieved.</div>';
+    } else {
+      chunksContainer.innerHTML = chunks.map(function(c, i) {
+        var dist = c.distance != null ? parseFloat(c.distance) : null;
+        var distCls = dist == null ? "green" : (dist < 0.3 ? "green" : dist < 0.5 ? "yellow" : "red");
+        var distPct = dist != null ? Math.min(100, Math.round(dist * 100)) : 0;
+        var distBadge = dist != null
+          ? '<div class="dist-badge">' +
+              '<div class="dist-bar"><div class="dist-fill ' + distCls + '" style="width:' + distPct + '%"></div></div>' +
+              '<span class="dist-text ' + distCls + '">' + dist.toFixed(3) + '</span>' +
+            '</div>'
+          : '';
+        var source = c.source || c.filename || "unknown";
+        var page = c.page != null ? "p." + c.page : "";
+        var chunkType = c.chunk_type || c.type || "";
+        var headerLabel = "#" + (i + 1) + "  " + source + (page ? " · " + page : "") + (chunkType ? " · " + chunkType : "");
+        var bodyText = c.content_preview || c.content || c.text || "";
+        return '<div class="chunk-item" id="chunk-' + i + '">' +
+          '<div class="chunk-header" onclick="toggleChunk(' + i + ')">' +
+          '<span class="chunk-header-left">' + esc(headerLabel) + '</span>' +
+          distBadge +
+          '</div>' +
+          '<div class="chunk-body">' + esc(bodyText) + '</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    // Context
+    var context = data.context || data.prompt_context || "";
+    document.getElementById("qt-context-pre").textContent = context;
+    document.getElementById("qt-context-pre").classList.remove("visible");
+  }
+
+  function toggleChunk(i) {
+    var el = document.getElementById("chunk-" + i);
+    if (el) el.classList.toggle("open");
+  }
+
+  function toggleContext() {
+    document.getElementById("qt-context-pre").classList.toggle("visible");
+  }
+
+  // ===== INIT =====
+  function init() {
+    loadStats();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
 </script>
 </body>
 </html>

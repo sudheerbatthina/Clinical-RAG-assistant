@@ -106,12 +106,18 @@ class QueryDebugRequest(BaseModel):
     session_id: str = "global"
 
 
+class SuggestFollowupsRequest(BaseModel):
+    question: str
+    answer: str
+
+
 class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
     use_cache: bool = True
     user_group: str | None = None  # public / clinical / billing / admin
     chat_id: str | None = None     # existing chat id, "new", or None
+    mode: str = "chat"             # "chat" or "research"
 
 
 class SourceInfo(BaseModel):
@@ -302,6 +308,40 @@ def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.post("/query/suggest-followups", dependencies=[Depends(_require_api_key)])
+def suggest_followups(request: SuggestFollowupsRequest):
+    """Generate 3 follow-up questions given a question + answer pair."""
+    from openai import OpenAI
+    try:
+        client = OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Generate exactly 3 short follow-up questions a user might ask "
+                        "after receiving this answer about clinical/healthcare documents. "
+                        "Return ONLY a JSON array of 3 strings, nothing else."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Question: {request.question}\n\nAnswer: {request.answer}",
+                },
+            ],
+            temperature=0,
+            max_tokens=150,
+        )
+        raw = resp.choices[0].message.content.strip()
+        questions = json.loads(raw)
+        if not isinstance(questions, list):
+            questions = []
+    except Exception:
+        questions = []
+    return {"questions": questions[:3]}
+
+
 @app.post("/query/stream", dependencies=[Depends(_require_api_key)])
 async def query_stream(request: QueryRequest):
     """Stream an SSE response for a question with optional chat persistence."""
@@ -325,6 +365,7 @@ async def query_stream(request: QueryRequest):
             user_group=request.user_group,
             session_id=session_id,
             history=history,
+            mode=request.mode,
         ):
             try:
                 raw = chunk.removeprefix("data: ").strip()

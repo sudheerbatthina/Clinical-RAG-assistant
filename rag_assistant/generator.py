@@ -21,6 +21,11 @@ SYSTEM_PROMPT = (
     "Always cite the source document name and page number(s) you used in your answer."
 )
 
+RESEARCH_PREFIX = (
+    "You are in RESEARCH MODE. Synthesize information from ALL provided sources "
+    "comprehensively. Use headers and bullet points. Cite every claim."
+)
+
 
 def build_context(hits: list[dict]) -> str:
     blocks = []
@@ -31,9 +36,9 @@ def build_context(hits: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
-def _build_messages(context: str, question: str, history: list[dict] | None) -> list[dict]:
+def _build_messages(context: str, question: str, history: list[dict] | None, system_prompt: str = SYSTEM_PROMPT) -> list[dict]:
     """Build the OpenAI messages list with optional conversation history."""
-    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    msgs = [{"role": "system", "content": system_prompt}]
     for msg in (history or [])[-6:]:   # last 3 turns (6 messages)
         if msg["role"] in ("user", "assistant"):
             msgs.append({"role": msg["role"], "content": msg["content"]})
@@ -115,6 +120,7 @@ def stream_answer(
     user_group: str | None = None,
     session_id: str = "global",
     history: list[dict] | None = None,
+    mode: str = "chat",
 ) -> Generator[str, None, None]:
     """Yield SSE-formatted chunks for streaming responses."""
 
@@ -131,16 +137,18 @@ def stream_answer(
     if rewritten != question:
         logger.info("Stream query rewritten: %r → %r", question, rewritten)
 
-    # 3. Retrieve
-    hits = retrieve(rewritten, top_k=top_k, user_group=user_group, session_id=session_id)
+    # 3. Retrieve — research mode uses 3× chunks up to 20
+    effective_top_k = min(top_k * 3, 20) if mode == "research" else top_k
+    hits = retrieve(rewritten, top_k=effective_top_k, user_group=user_group, session_id=session_id)
     context = build_context(hits)
 
     # 4. Stream from OpenAI
+    system_prompt = (RESEARCH_PREFIX + " " + SYSTEM_PROMPT) if mode == "research" else SYSTEM_PROMPT
     client = OpenAI()
     full_answer = ""
     stream = client.chat.completions.create(
         model=CHAT_MODEL,
-        messages=_build_messages(context, question, history),
+        messages=_build_messages(context, question, history, system_prompt=system_prompt),
         temperature=0,
         stream=True,
     )
