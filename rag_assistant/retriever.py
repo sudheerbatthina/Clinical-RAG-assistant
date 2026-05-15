@@ -10,6 +10,7 @@ from .config import (
     COHERE_API_KEY, RERANK_CANDIDATES, RERANK_TOP_N,
     GROUP_ACCESS_MAP, DEFAULT_ACCESS_LEVEL,
 )
+from .hybrid_retriever import bm25_search, reciprocal_rank_fusion
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ def retrieve(
     top_k: int = TOP_K,
     user_group: str | None = None,
     session_id: str = "global",
+    use_hybrid: bool = True,
 ) -> list[dict]:
     """Find the most relevant chunks for a query.
 
@@ -114,6 +116,31 @@ def retrieve(
         }
         for i in range(len(results["ids"][0]))
     ]
+
+    if use_hybrid:
+        bm25_hits = bm25_search(
+            query,
+            top_k=top_k * 3,
+            session_filter=None if session_id == "global" else session_id,
+        )
+        ordered_ids = reciprocal_rank_fusion(hits, bm25_hits)
+
+        hit_map = {h["chunk_id"]: h for h in hits}
+        bm25_map = {h["id"]: h for h in bm25_hits}
+
+        final_hits = []
+        for cid in ordered_ids[:top_k]:
+            if cid in hit_map:
+                final_hits.append(hit_map[cid])
+            elif cid in bm25_map:
+                bh = bm25_map[cid]
+                final_hits.append({
+                    "chunk_id": cid,
+                    "content": bh["content"],
+                    "metadata": bh["metadata"],
+                    "distance": 0.5,
+                })
+        return final_hits[:top_k]
 
     if not use_reranking:
         return hits[:top_k]

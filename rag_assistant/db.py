@@ -58,6 +58,15 @@ def init_db():
                 flagged_claims TEXT,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'member',
+                created_at TEXT NOT NULL,
+                last_login TEXT
+            );
         """)
 
 def create_chat(title="New chat") -> dict:
@@ -122,6 +131,82 @@ def save_query_log(chat_id: str, question: str, rewritten: str,
              sources_count, latency_ms, int(from_cache),
              faithfulness_score, now)
         )
+
+def create_user(username: str, password: str,
+                email: str = None, role: str = "member") -> dict:
+    from .auth import hash_password
+    now = datetime.utcnow().isoformat()
+    uid = str(uuid.uuid4())
+    with get_conn() as conn:
+        try:
+            conn.execute(
+                "INSERT INTO users VALUES (?,?,?,?,?,?,?)",
+                (uid, username, email, hash_password(password), role, now, None),
+            )
+        except Exception:
+            raise ValueError(f"Username '{username}' already exists")
+    return {"id": uid, "username": username, "role": role}
+
+
+def get_user_by_username(username: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE username=?", (username,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_last_login(user_id: str):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET last_login=? WHERE id=?",
+            (datetime.utcnow().isoformat(), user_id),
+        )
+
+
+def list_users() -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, username, email, role, created_at, last_login "
+            "FROM users ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_analytics() -> dict:
+    """Return usage analytics aggregated from query_logs and feedback."""
+    with get_conn() as conn:
+        total_queries = conn.execute(
+            "SELECT COUNT(*) FROM query_logs").fetchone()[0]
+        cache_hits = conn.execute(
+            "SELECT COUNT(*) FROM query_logs WHERE from_cache=1").fetchone()[0]
+        avg_latency = conn.execute(
+            "SELECT AVG(latency_ms) FROM query_logs "
+            "WHERE from_cache=0").fetchone()[0]
+        avg_faithfulness = conn.execute(
+            "SELECT AVG(faithfulness_score) FROM query_logs "
+            "WHERE faithfulness_score IS NOT NULL").fetchone()[0]
+        queries_by_day = conn.execute(
+            """SELECT substr(created_at,1,10) as day, COUNT(*) as count
+               FROM query_logs
+               WHERE created_at >= datetime('now','-7 days')
+               GROUP BY day ORDER BY day ASC"""
+        ).fetchall()
+        feedback_good = conn.execute(
+            "SELECT COUNT(*) FROM feedback WHERE rating=1").fetchone()[0]
+        feedback_bad = conn.execute(
+            "SELECT COUNT(*) FROM feedback WHERE rating=-1").fetchone()[0]
+    return {
+        "total_queries": total_queries,
+        "cache_hits": cache_hits,
+        "cache_hit_rate": round(cache_hits / total_queries * 100, 1) if total_queries else 0,
+        "avg_latency_ms": round(avg_latency or 0, 0),
+        "avg_faithfulness": round(avg_faithfulness or 0, 1),
+        "queries_by_day": [{"day": r[0], "count": r[1]} for r in queries_by_day],
+        "feedback_good": feedback_good,
+        "feedback_bad": feedback_bad,
+    }
+
 
 def purge_old_logs(days: int = 7) -> int:
     cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()

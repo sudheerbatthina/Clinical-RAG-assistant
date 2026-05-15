@@ -71,13 +71,31 @@ def build_context(hits: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
-def _build_messages(context: str, question: str, history: list[dict] | None, system_prompt: str = SYSTEM_PROMPT) -> list[dict]:
+_STYLE_INSTRUCTIONS = {
+    "concise": "Answer in 2-3 sentences maximum. Be direct.",
+    "bullets": "Answer using bullet points only. Each point max 1 sentence.",
+    "detailed": "Answer thoroughly with full explanation.",
+}
+
+
+def _build_messages(
+    context: str,
+    question: str,
+    history: list[dict] | None,
+    system_prompt: str = SYSTEM_PROMPT,
+    answer_style: str = "detailed",
+) -> list[dict]:
     """Build the OpenAI messages list with optional conversation history."""
     msgs = [{"role": "system", "content": system_prompt}]
     for msg in (history or [])[-6:]:   # last 3 turns (6 messages)
         if msg["role"] in ("user", "assistant"):
             msgs.append({"role": msg["role"], "content": msg["content"]})
-    msgs.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
+    style_instruction = _STYLE_INSTRUCTIONS.get(answer_style, _STYLE_INSTRUCTIONS["detailed"])
+    msgs.append({"role": "user", "content": (
+        f"Context:\n{context}\n\n"
+        f"Question: {question}\n\n"
+        f"Format: {style_instruction}"
+    )})
     return msgs
 
 
@@ -88,6 +106,7 @@ def answer_question(
     user_group: str | None = None,
     session_id: str = "global",
     history: list[dict] | None = None,
+    answer_style: str = "detailed",
 ) -> dict:
     """Run the full RAG pipeline with query rewriting and semantic caching.
 
@@ -122,7 +141,7 @@ def answer_question(
     t0 = time.time()
     response = client.chat.completions.create(
         model=CHAT_MODEL,
-        messages=_build_messages(context, question, history),
+        messages=_build_messages(context, question, history, answer_style=answer_style),
         temperature=0,
     )
     latency_s = round(time.time() - t0, 3)
@@ -156,6 +175,7 @@ def stream_answer(
     session_id: str = "global",
     history: list[dict] | None = None,
     mode: str = "chat",
+    answer_style: str = "detailed",
 ) -> Generator[str, None, None]:
     """Yield SSE-formatted chunks for streaming responses."""
 
@@ -183,7 +203,7 @@ def stream_answer(
     full_answer = ""
     stream = client.chat.completions.create(
         model=CHAT_MODEL,
-        messages=_build_messages(context, question, history, system_prompt=system_prompt),
+        messages=_build_messages(context, question, history, system_prompt=system_prompt, answer_style=answer_style),
         temperature=0,
         stream=True,
     )

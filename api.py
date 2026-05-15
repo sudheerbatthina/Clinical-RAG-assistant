@@ -1,20 +1,12 @@
-"""FastAPI service for the Healthcare RAG Assistant.
-
-Run locally:
-    uvicorn api:app --reload
-
-Authentication:
-    All endpoints except /health and /documents require an X-API-Key header
-    matching one of the keys in API_KEYS (set in .env as a comma-separated list).
-"""
+"""FastAPI service for the Healthcare RAG Assistant."""
 
 import json
 import logging
 import threading
 
 import chromadb
-from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File, Query
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File, Query, Header
+from fastapi.responses import StreamingResponse, RedirectResponse
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -27,9 +19,11 @@ from rag_assistant.db import (
     init_db, create_chat, list_chats, get_chat, delete_chat,
     add_message, get_messages, get_conn,
     save_feedback, save_query_log, purge_old_logs,
+    create_user, get_user_by_username, update_last_login, list_users, get_analytics,
 )
 from rag_assistant.retriever import retrieve
 from rag_assistant.query_rewriter import rewrite_query
+from rag_assistant.auth import verify_password, create_token, decode_token
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -43,6 +37,7 @@ app = FastAPI(title="Healthcare RAG Assistant")
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+
     try:
         deleted = purge_old_logs(days=7)
         logger.info("Purged %d old query log entries", deleted)
@@ -54,6 +49,20 @@ def _startup() -> None:
         migrate_existing_chunks()
     except Exception as exc:
         logger.warning("Chunk migration failed: %s", exc)
+
+    try:
+        from rag_assistant.hybrid_retriever import build_bm25_index
+        n = build_bm25_index()
+        logger.info("BM25 index built: %d chunks", n)
+    except Exception as exc:
+        logger.warning("BM25 index build failed: %s", exc)
+
+    try:
+        if not get_user_by_username("admin"):
+            create_user("admin", "admin123", role="admin")
+            logger.info("Created default admin user (admin/admin123)")
+    except Exception as exc:
+        logger.warning("Default admin user creation failed: %s", exc)
 
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
@@ -102,6 +111,21 @@ def _require_api_key(key: str | None = Security(_api_key_header)) -> str:
 get_api_key = _require_api_key
 
 
+def _require_auth(
+    api_key: str | None = Security(_api_key_header),
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Accept either X-API-Key or Bearer JWT."""
+    if api_key and api_key in API_KEYS:
+        return {"user_id": "api", "username": "api", "role": "admin"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        payload = decode_token(token)
+        if payload:
+            return payload
+    raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Invalid or missing credentials")
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -121,9 +145,10 @@ class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
     use_cache: bool = True
-    user_group: str | None = None  # public / clinical / billing / admin
-    chat_id: str | None = None     # existing chat id, "new", or None
-    mode: str = "chat"             # "chat" or "research"
+    user_group: str | None = None
+    chat_id: str | None = None
+    mode: str = "chat"
+    answer_style: str = "detailed"
 
 
 class SourceInfo(BaseModel):
@@ -142,34 +167,98 @@ class QueryResponse(BaseModel):
     chat_id: str | None = None
 
 
+class FeedbackRequest(BaseModel):
+    chat_id: str
+    message_id: str | None = None
+    question: str
+    answer: str
+    rating: int
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: str | None = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "member"
+    email: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Auth endpoints (public)
+# ---------------------------------------------------------------------------
+
+@app.get("/login")
+def login_page():
+    return RedirectResponse(url="/login.html")
+
+
+@app.post("/auth/register")
+def auth_register(request: RegisterRequest):
+    try:
+        user = create_user(request.username, request.password,
+                           email=request.email, role="member")
+        token = create_token(user["id"], user["username"], user["role"])
+        return {**user, "token": token}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/auth/login")
+def auth_login(request: LoginRequest):
+    user = get_user_by_username(request.username)
+    if not user or not verify_password(request.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    update_last_login(user["id"])
+    token = create_token(user["id"], user["username"], user["role"])
+    return {
+        "token": token,
+        "username": user["username"],
+        "role": user["role"],
+        "user_id": user["id"],
+    }
+
+
+@app.get("/auth/me")
+def auth_me(user: dict = Depends(_require_auth)):
+    return {k: v for k, v in user.items() if k != "exp"}
+
+
 # ---------------------------------------------------------------------------
 # Chat endpoints
 # ---------------------------------------------------------------------------
 
-@app.get("/chats", dependencies=[Depends(_require_api_key)])
+@app.get("/chats", dependencies=[Depends(_require_auth)])
 def get_chats_list():
-    """List all chats sorted by most recently updated."""
     return list_chats()
 
 
-@app.post("/chats", dependencies=[Depends(_require_api_key)])
+@app.post("/chats", dependencies=[Depends(_require_auth)])
 def new_chat():
-    """Create a new empty chat and return it."""
     return create_chat()
 
 
-@app.get("/chats/{chat_id}", dependencies=[Depends(_require_api_key)])
+@app.get("/chats/{chat_id}", dependencies=[Depends(_require_auth)])
 def get_chat_detail(chat_id: str):
-    """Return a chat and all its messages."""
     chat = get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     return {**chat, "messages": get_messages(chat_id)}
 
 
-@app.delete("/chats/{chat_id}", dependencies=[Depends(_require_api_key)])
+@app.delete("/chats/{chat_id}", dependencies=[Depends(_require_auth)])
 def remove_chat(chat_id: str):
-    """Delete a chat, its messages, and all its session-scoped vectors."""
     if not get_chat(chat_id):
         raise HTTPException(status_code=404, detail="Chat not found")
     delete_chat(chat_id)
@@ -183,9 +272,8 @@ def remove_chat(chat_id: str):
     return {"status": "deleted"}
 
 
-@app.post("/chats/{chat_id}/upload", dependencies=[Depends(_require_api_key)])
+@app.post("/chats/{chat_id}/upload", dependencies=[Depends(_require_auth)])
 async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
-    """Upload a PDF scoped to a specific chat session and index it in the background."""
     if not get_chat(chat_id):
         raise HTTPException(status_code=404, detail="Chat not found")
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -207,16 +295,15 @@ async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
             from rag_assistant.vector_store import index_pdf_for_session
             index_pdf_for_session(dest, session_id=chat_id)
             logger.info("Session upload indexed: %s for chat %s", filename, chat_id)
+            _fire_webhook("document_indexed", filename, None, chat_id)
         except Exception as e:
             logger.error("Session upload indexing failed: %s", e)
     threading.Thread(target=_bg_index, daemon=True).start()
-
     return {"status": "upload_received_indexing_started", "filename": filename}
 
 
-@app.get("/chats/{chat_id}/documents", dependencies=[Depends(_require_api_key)])
+@app.get("/chats/{chat_id}/documents", dependencies=[Depends(_require_auth)])
 def get_chat_documents(chat_id: str):
-    """Return unique sources and chunk counts for a specific chat session."""
     if not get_chat(chat_id):
         raise HTTPException(status_code=404, detail="Chat not found")
     try:
@@ -236,12 +323,11 @@ def get_chat_documents(chat_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Core endpoints
+# Core query endpoints
 # ---------------------------------------------------------------------------
 
-@app.post("/index", dependencies=[Depends(_require_api_key)])
+@app.post("/index", dependencies=[Depends(_require_auth)])
 def index():
-    """Re-index all PDFs in the data/ directory into the global store."""
     try:
         from rag_assistant.vector_store import index_all_pdfs
         result = index_all_pdfs()
@@ -251,9 +337,8 @@ def index():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/upload", dependencies=[Depends(_require_api_key)])
+@app.post("/upload", dependencies=[Depends(_require_auth)])
 async def upload(file: UploadFile = File(...)):
-    """Upload a PDF to the global store and index it in the background."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
@@ -266,29 +351,26 @@ async def upload(file: UploadFile = File(...)):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}")
 
+    filename = file.filename
     def _bg_index():
         try:
             from rag_assistant.vector_store import index_single_pdf
             collection = index_single_pdf(dest)
-            logger.info("Background upload index complete: %d chunks", collection.count())
+            count = collection.count() if collection is not None else 0
+            logger.info("Background upload index complete: %d chunks", count)
+            _fire_webhook("document_indexed", filename, count, "global")
         except Exception as e:
             logger.error("Background upload index failed: %s", e)
     threading.Thread(target=_bg_index, daemon=True).start()
     return {
         "status": "upload_received_indexing_started",
-        "filename": file.filename,
+        "filename": filename,
         "message": "Indexing running in background. Watch deploy logs.",
     }
 
 
-@app.post("/query", response_model=QueryResponse, dependencies=[Depends(_require_api_key)])
+@app.post("/query", response_model=QueryResponse, dependencies=[Depends(_require_auth)])
 def query(request: QueryRequest):
-    """Ask a question and get a grounded answer with citations.
-
-    If chat_id is "new", a chat is created automatically.
-    If chat_id is provided, the exchange is persisted to that chat and
-    retrieval is scoped to global + that session's documents.
-    """
     active_chat_id = request.chat_id
     if active_chat_id == "new":
         chat = create_chat()
@@ -303,6 +385,7 @@ def query(request: QueryRequest):
             use_cache=request.use_cache,
             user_group=request.user_group,
             session_id=session_id,
+            answer_style=request.answer_style,
         )
         if active_chat_id:
             add_message(active_chat_id, "user", request.question)
@@ -314,9 +397,8 @@ def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/query/suggest-followups", dependencies=[Depends(_require_api_key)])
+@app.post("/query/suggest-followups", dependencies=[Depends(_require_auth)])
 def suggest_followups(request: SuggestFollowupsRequest):
-    """Generate 3 follow-up questions given a question + answer pair."""
     from openai import OpenAI
     try:
         client = OpenAI()
@@ -348,9 +430,8 @@ def suggest_followups(request: SuggestFollowupsRequest):
     return {"questions": questions[:3]}
 
 
-@app.post("/query/stream", dependencies=[Depends(_require_api_key)])
+@app.post("/query/stream", dependencies=[Depends(_require_auth)])
 async def query_stream(request: QueryRequest):
-    """Stream an SSE response for a question with optional chat persistence."""
     active_chat_id = request.chat_id
     if active_chat_id == "new":
         chat = create_chat()
@@ -362,7 +443,7 @@ async def query_stream(request: QueryRequest):
     if active_chat_id:
         history = get_messages(active_chat_id)
 
-    collected: dict = {"answer": "", "sources": []}
+    collected: dict = {"answer": "", "sources": [], "faithfulness": None, "from_cache": False}
 
     def _event_stream():
         for chunk in stream_answer(
@@ -372,14 +453,20 @@ async def query_stream(request: QueryRequest):
             session_id=session_id,
             history=history,
             mode=request.mode,
+            answer_style=request.answer_style,
         ):
             try:
                 raw = chunk.removeprefix("data: ").strip()
                 payload = json.loads(raw)
-                if payload.get("type") == "answer_chunk":
+                t = payload.get("type")
+                if t == "answer_chunk":
                     collected["answer"] += payload.get("content", "")
-                elif payload.get("type") == "sources":
+                elif t == "sources":
                     collected["sources"] = payload.get("sources", [])
+                elif t == "faithfulness":
+                    collected["faithfulness"] = payload.get("score")
+                elif t == "done":
+                    collected["from_cache"] = payload.get("from_cache", False)
             except Exception:
                 pass
             yield chunk
@@ -390,12 +477,44 @@ async def query_stream(request: QueryRequest):
                         json.dumps(collected["sources"]))
             yield f"data: {json.dumps({'type': 'chat_id', 'chat_id': active_chat_id})}\n\n"
 
+        try:
+            save_query_log(
+                chat_id=active_chat_id or "global",
+                question=request.question,
+                rewritten=request.question,
+                answer_preview=collected["answer"][:200],
+                sources_count=len(collected["sources"]),
+                latency_ms=None,
+                from_cache=collected["from_cache"],
+                faithfulness_score=collected["faithfulness"],
+            )
+        except Exception as exc:
+            logger.warning("save_query_log failed: %s", exc)
+
     return StreamingResponse(_event_stream(), media_type="text/event-stream")
 
 
-@app.get("/admin/documents", dependencies=[Depends(_require_api_key)])
+# ---------------------------------------------------------------------------
+# Feedback
+# ---------------------------------------------------------------------------
+
+@app.post("/feedback", dependencies=[Depends(_require_auth)])
+def submit_feedback(request: FeedbackRequest):
+    if request.rating not in (1, -1):
+        raise HTTPException(status_code=400, detail="rating must be 1 or -1")
+    try:
+        return save_feedback(request.chat_id, request.message_id,
+                             request.question, request.answer, request.rating)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Admin endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/admin/documents", dependencies=[Depends(_require_auth)])
 def list_global_documents():
-    """List all globally indexed documents with chunk counts (auth required)."""
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
@@ -416,7 +535,7 @@ def list_global_documents():
 
 @app.get("/documents")
 def documents():
-    """Return global (session_id='global') sources and chunk counts. No auth required."""
+    """Public — no auth required."""
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
@@ -435,9 +554,8 @@ def documents():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.get("/admin/stats", dependencies=[Depends(_require_api_key)])
+@app.get("/admin/stats", dependencies=[Depends(_require_auth)])
 def admin_stats():
-    """System-wide stats: chunk counts, chat/message counts, document list, cache info."""
     try:
         chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
@@ -452,7 +570,7 @@ def admin_stats():
         for meta in global_results["metadatas"]:
             src = meta.get("source", "unknown")
             counts[src] = counts.get(src, 0) + 1
-        documents = [{"source": s, "chunk_count": c} for s, c in sorted(counts.items())]
+        docs = [{"source": s, "chunk_count": c} for s, c in sorted(counts.items())]
 
         with get_conn() as conn:
             total_chats = conn.execute("SELECT COUNT(*) FROM chats").fetchone()[0]
@@ -464,7 +582,7 @@ def admin_stats():
             "session_chunks": total_chunks - global_chunks,
             "total_chats": total_chats,
             "total_messages": total_messages,
-            "documents": documents,
+            "documents": docs,
             "cache_backend": cache_backend(),
             "storage_dir": str(STORAGE_DIR),
         }
@@ -472,9 +590,8 @@ def admin_stats():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.delete("/admin/documents", dependencies=[Depends(_require_api_key)])
-def delete_global_document_by_param(filename: str = Query(..., description="Exact source filename to delete")):
-    """Delete all chunks for a given filename (query param: ?filename=X)."""
+@app.delete("/admin/documents", dependencies=[Depends(_require_auth)])
+def delete_global_document_by_param(filename: str = Query(...)):
     try:
         chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
@@ -489,12 +606,10 @@ def delete_global_document_by_param(filename: str = Query(..., description="Exac
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/admin/reindex", dependencies=[Depends(_require_api_key)])
+@app.post("/admin/reindex", dependencies=[Depends(_require_auth)])
 def admin_reindex():
-    """Re-index all PDFs in DATA_DIR with session_id='global' in a background thread."""
     pdf_files = list(DATA_DIR.glob("*.pdf")) if DATA_DIR.exists() else []
     filenames = [f.name for f in pdf_files]
-
     def _bg():
         try:
             from rag_assistant.vector_store import index_all_pdfs
@@ -503,14 +618,12 @@ def admin_reindex():
             logger.info("Admin reindex complete: %d chunks", count)
         except Exception as e:
             logger.error("Admin reindex failed: %s", e)
-
     threading.Thread(target=_bg, daemon=True).start()
     return {"status": "reindexing_started", "files": filenames}
 
 
-@app.post("/admin/query-debug", dependencies=[Depends(_require_api_key)])
+@app.post("/admin/query-debug", dependencies=[Depends(_require_auth)])
 def admin_query_debug(request: QueryDebugRequest):
-    """Return full retrieval debug info — rewritten query, chunks, context — without calling the LLM."""
     try:
         rewritten = rewrite_query(request.question)
         hits = retrieve(rewritten, top_k=request.top_k, session_id=request.session_id)
@@ -536,9 +649,8 @@ def admin_query_debug(request: QueryDebugRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.get("/admin/sessions", dependencies=[Depends(_require_api_key)])
+@app.get("/admin/sessions", dependencies=[Depends(_require_auth)])
 def admin_sessions():
-    """All chats with message counts and session-scoped document counts."""
     try:
         with get_conn() as conn:
             rows = conn.execute("""
@@ -569,9 +681,8 @@ def admin_sessions():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.delete("/admin/sessions/{chat_id}", dependencies=[Depends(_require_api_key)])
+@app.delete("/admin/sessions/{chat_id}", dependencies=[Depends(_require_auth)])
 def admin_delete_session(chat_id: str):
-    """Delete a chat + messages from SQLite and its session chunks from Chroma."""
     if not get_chat(chat_id):
         raise HTTPException(status_code=404, detail="Chat not found")
     chunks_removed = 0
@@ -588,9 +699,8 @@ def admin_delete_session(chat_id: str):
     return {"deleted": chat_id, "chunks_removed": chunks_removed}
 
 
-@app.delete("/admin/documents/{filename}", dependencies=[Depends(_require_api_key)])
+@app.delete("/admin/documents/{filename}", dependencies=[Depends(_require_auth)])
 def delete_global_document(filename: str):
-    """Remove all chunks for a specific source filename from the global chroma index."""
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
         collection = client.get_or_create_collection(name=COLLECTION_NAME)
@@ -605,26 +715,8 @@ def delete_global_document(filename: str):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/feedback", dependencies=[Depends(_require_api_key)])
-def submit_feedback(
-    chat_id: str,
-    message_id: str,
-    question: str,
-    answer: str,
-    rating: int,
-):
-    """Save thumbs-up (1) or thumbs-down (-1) feedback for a message."""
-    if rating not in (1, -1):
-        raise HTTPException(status_code=400, detail="rating must be 1 or -1")
-    try:
-        return save_feedback(chat_id, message_id, question, answer, rating)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
-@app.get("/admin/logs", dependencies=[Depends(_require_api_key)])
+@app.get("/admin/logs", dependencies=[Depends(_require_auth)])
 def admin_logs(days: int = 7, limit: int = 100):
-    """Return recent query logs ordered by created_at DESC."""
     try:
         cutoff = (__import__("datetime").datetime.utcnow()
                   - __import__("datetime").timedelta(days=days)).isoformat()
@@ -641,9 +733,8 @@ def admin_logs(days: int = 7, limit: int = 100):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.get("/admin/feedback", dependencies=[Depends(_require_api_key)])
+@app.get("/admin/feedback", dependencies=[Depends(_require_auth)])
 def admin_feedback():
-    """Return all feedback with a summary header."""
     try:
         with get_conn() as conn:
             rows = conn.execute(
@@ -666,10 +757,60 @@ def admin_feedback():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.get("/admin/analytics", dependencies=[Depends(_require_auth)])
+def admin_analytics():
+    try:
+        return get_analytics()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/admin/users")
+def admin_users(user: dict = Depends(_require_auth)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        return list_users()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/admin/users")
+def admin_create_user(request: CreateUserRequest, user: dict = Depends(_require_auth)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        return create_user(request.username, request.password,
+                           email=request.email, role=request.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.get("/health")
 def health():
-    """Public health-check — no authentication required."""
     return {"status": "ok", "cache_backend": cache_backend()}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _fire_webhook(event: str, filename: str, chunks: int | None, session_id: str):
+    import os, requests as req_lib
+    webhook_url = os.environ.get("WEBHOOK_URL", "")
+    if not webhook_url:
+        return
+    try:
+        req_lib.post(webhook_url, json={
+            "event": event,
+            "filename": filename,
+            "chunks": chunks,
+            "session_id": session_id,
+        }, timeout=5)
+    except Exception:
+        pass
 
 
 # Mount frontend AFTER all API routes so API paths take priority

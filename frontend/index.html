@@ -1232,6 +1232,7 @@
       <div id="profile-popover">
         <button class="popover-item" onclick="openSettingsPanel(); closeProfilePopover()">&#9881;&#65039; Settings</button>
         <button class="popover-item" onclick="clearAllChats()">&#128465;&#65039; Clear all chats</button>
+        <button class="popover-item" style="color:#ef4444;" onclick="signOut()">&#8594; Sign out</button>
         <div class="popover-footer">Clinical RAG v1.0</div>
       </div>
       <div class="sidebar-profile">
@@ -1404,10 +1405,21 @@
 </div>
 
 <script>
-  const API_KEY = "dev-key-123";
   const BASE = window.location.origin;
-  const AUTH = { "X-API-Key": API_KEY };
-  const AUTHJSON = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
+
+  function getToken() { return localStorage.getItem("crag_token") || ""; }
+  function getAuth() { return { "Authorization": "Bearer " + getToken() }; }
+  function getAuthJson() { return { "Authorization": "Bearer " + getToken(), "Content-Type": "application/json" }; }
+
+  function checkAuth() {
+    if (!getToken()) { window.location.replace("/login"); }
+  }
+
+  function signOut() {
+    localStorage.removeItem("crag_token");
+    localStorage.removeItem("crag_user");
+    window.location.replace("/login");
+  }
 
   const DEFAULT_SETTINGS = {
     name: "User",
@@ -1588,7 +1600,7 @@
     var container = document.getElementById("kb-docs-list");
     container.innerHTML = '<div class="empty-panel-msg">Loading...</div>';
     try {
-      var res = await fetch(BASE + "/admin/documents", { headers: AUTH });
+      var res = await fetch(BASE + "/admin/documents", { headers: getAuth() });
       var data = await res.json();
       var docs = data.documents || data || [];
       if (!Array.isArray(docs)) docs = [];
@@ -1630,7 +1642,7 @@
     var container = document.getElementById("session-docs-list");
     container.innerHTML = '<div class="empty-panel-msg">Loading...</div>';
     try {
-      var res = await fetch(BASE + "/chats/" + activeChatId + "/documents", { headers: AUTH });
+      var res = await fetch(BASE + "/chats/" + activeChatId + "/documents", { headers: getAuth() });
       var data = await res.json();
       var docs = data.documents || data || [];
       if (!Array.isArray(docs)) docs = [];
@@ -1658,7 +1670,7 @@
     var file = input.files[0];
     var formData = new FormData();
     formData.append("file", file);
-    fetch(BASE + "/upload", { method: "POST", headers: AUTH, body: formData })
+    fetch(BASE + "/upload", { method: "POST", headers: getAuth(), body: formData })
       .then(function() { loadKbDocs(); })
       .catch(function() { alert("Upload failed."); });
     input.value = "";
@@ -1669,7 +1681,7 @@
     var file = input.files[0];
     var formData = new FormData();
     formData.append("file", file);
-    fetch(BASE + "/chats/" + activeChatId + "/upload", { method: "POST", headers: AUTH, body: formData })
+    fetch(BASE + "/chats/" + activeChatId + "/upload", { method: "POST", headers: getAuth(), body: formData })
       .then(function() { loadSessionDocsPanel(); refreshSessionDocChips(); })
       .catch(function() { alert("Upload failed."); });
     input.value = "";
@@ -1720,7 +1732,7 @@
   // ===== CHAT LOAD =====
   async function loadChats() {
     try {
-      var res = await fetch(BASE + "/chats", { headers: AUTH });
+      var res = await fetch(BASE + "/chats", { headers: getAuth() });
       allChats = await res.json();
       if (!Array.isArray(allChats)) allChats = [];
       renderChatList(allChats);
@@ -1813,7 +1825,7 @@
     showChatView();
 
     try {
-      var res = await fetch(BASE + "/chats/" + chatId, { headers: AUTH });
+      var res = await fetch(BASE + "/chats/" + chatId, { headers: getAuth() });
       var data = await res.json();
       document.getElementById("chat-header-title").textContent = data.title || "Chat";
       renderMessages(data.messages || []);
@@ -1854,7 +1866,7 @@
     try {
       var res = await fetch(BASE + "/chats", {
         method: "POST",
-        headers: AUTHJSON,
+        headers: getAuthJson(),
         body: JSON.stringify({ title: "New Chat" })
       });
       var data = await res.json();
@@ -1898,7 +1910,7 @@
     try {
       var res = await fetch(BASE + "/query/stream", {
         method: "POST",
-        headers: AUTHJSON,
+        headers: getAuthJson(),
         body: JSON.stringify({
           question: text,
           chat_id: activeChatId,
@@ -2128,7 +2140,7 @@
       if (question && chatId) {
         fetch(BASE + "/feedback", {
           method: "POST",
-          headers: AUTHJSON,
+          headers: getAuthJson(),
           body: JSON.stringify({ chat_id: chatId, message_id: null, question: question, answer: ans, rating: 1 })
         }).catch(function() {});
       }
@@ -2140,7 +2152,7 @@
       if (question && chatId) {
         fetch(BASE + "/feedback", {
           method: "POST",
-          headers: AUTHJSON,
+          headers: getAuthJson(),
           body: JSON.stringify({ chat_id: chatId, message_id: null, question: question, answer: ans, rating: -1 })
         }).catch(function() {});
       }
@@ -2198,7 +2210,7 @@
     try {
       var res = await fetch(BASE + "/query/suggest-followups", {
         method: "POST",
-        headers: AUTHJSON,
+        headers: getAuthJson(),
         body: JSON.stringify({ question: question, answer: answer })
       });
       var data = await res.json();
@@ -2249,7 +2261,7 @@
   async function deleteChat(chatId) {
     if (!confirm("Delete this chat?")) return;
     try {
-      await fetch(BASE + "/chats/" + chatId, { method: "DELETE", headers: AUTH });
+      await fetch(BASE + "/chats/" + chatId, { method: "DELETE", headers: getAuth() });
       if (activeChatId === chatId) {
         activeChatId = null;
         showEmptyState();
@@ -2266,11 +2278,11 @@
     if (!confirm("Clear ALL chats? This cannot be undone.")) return;
     closeProfilePopover();
     try {
-      var res = await fetch(BASE + "/chats", { headers: AUTH });
+      var res = await fetch(BASE + "/chats", { headers: getAuth() });
       var chats = await res.json();
       if (!Array.isArray(chats)) chats = [];
       for (var i = 0; i < chats.length; i++) {
-        await fetch(BASE + "/chats/" + chats[i].id, { method: "DELETE", headers: AUTH });
+        await fetch(BASE + "/chats/" + chats[i].id, { method: "DELETE", headers: getAuth() });
       }
       activeChatId = null;
       showEmptyState();
@@ -2309,7 +2321,7 @@
   async function refreshSessionDocChips() {
     if (!activeChatId) return;
     try {
-      var res = await fetch(BASE + "/chats/" + activeChatId + "/documents", { headers: AUTH });
+      var res = await fetch(BASE + "/chats/" + activeChatId + "/documents", { headers: getAuth() });
       var data = await res.json();
       var docs = data.documents || data || [];
       if (!Array.isArray(docs)) docs = [];
@@ -2362,6 +2374,17 @@
 
   // ===== INIT =====
   function init() {
+    checkAuth();
+
+    // Populate profile from JWT user info
+    try {
+      var cragUser = JSON.parse(localStorage.getItem("crag_user") || "{}");
+      if (cragUser.username) {
+        settings.name = cragUser.username;
+        settings.role = cragUser.role || "member";
+      }
+    } catch(e) {}
+
     loadSettings();
     loadChats();
 

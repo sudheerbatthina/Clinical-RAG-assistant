@@ -120,6 +120,12 @@ def chunk_document(
     for sec_idx, section in enumerate(sections):
         page = section["page"] or 1
         text = section["text"].strip()
+        section_title = text.split("\n")[0][:50] if text else ""
+        context_header = (
+            f"[Source: {source_name} | "
+            f"Page: {page} | "
+            f"Section: {section_title}]\n"
+        )
 
         if len(text) <= SECTION_MAX_CHARS:
             chunks.append({
@@ -127,7 +133,7 @@ def chunk_document(
                 "source": source_name,
                 "page_number": page,
                 "chunk_type": "text",
-                "content": text,
+                "content": context_header + text,
             })
         else:
             parts = _split_at_paragraphs(text, SECTION_MAX_CHARS)
@@ -137,7 +143,7 @@ def chunk_document(
                     "source": source_name,
                     "page_number": page,
                     "chunk_type": "text",
-                    "content": part,
+                    "content": context_header + part,
                 })
 
     # --- Table chunks (unchanged behaviour) ---
@@ -146,12 +152,13 @@ def chunk_document(
             markdown = table_to_markdown(table)
             if not markdown:
                 continue
+            tbl_header = f"[Source: {source_name} | Page: {page_num} | Section: Table]\n"
             chunks.append({
                 "chunk_id": f"{source_name}_p{page_num}_tbl{tbl_idx}",
                 "source": source_name,
                 "page_number": page_num,
                 "chunk_type": "table",
-                "content": markdown,
+                "content": tbl_header + markdown,
             })
 
     return chunks

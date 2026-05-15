@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical RAG — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #0f0f10;
+      color: #f4f4f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      width: 380px;
+      background: #18181b;
+      border: 1px solid #2a2a2e;
+      border-radius: 16px;
+      padding: 36px 32px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .logo-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f4f4f5;
+      margin-bottom: 4px;
+    }
+
+    .logo-sub {
+      font-size: 13px;
+      color: #71717a;
+    }
+
+    .form-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f4f4f5;
+      margin-bottom: 20px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #a1a1aa;
+      margin-bottom: 5px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 9px 12px;
+      background: #0f0f10;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #f4f4f5;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+
+    .field input::placeholder { color: #52525b; }
+
+    .submit-btn {
+      width: 100%;
+      padding: 10px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+
+    .submit-btn:hover { background: #818cf8; }
+    .submit-btn:disabled { background: #3f3f46; cursor: not-allowed; }
+
+    .toggle-link {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #71717a;
+    }
+
+    .toggle-link a {
+      color: #818cf8;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .toggle-link a:hover { text-decoration: underline; }
+
+    .error-msg {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #fca5a5;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    .error-msg.visible { display: block; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2a2a2e;
+      margin: 8px 0 16px;
+    }
+
+    #register-form { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <div class="logo-title">Clinical RAG</div>
+    <div class="logo-sub">Healthcare document intelligence</div>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <div id="login-form">
+    <div class="form-title">Sign in to your account</div>
+    <div class="error-msg" id="login-error"></div>
+    <div class="field">
+      <label for="login-username">Username</label>
+      <input type="text" id="login-username" placeholder="Enter username" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password" />
+    </div>
+    <button class="submit-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="toggle-link">
+      Don't have an account? <a onclick="showRegister()">Register</a>
+    </div>
+  </div>
+
+  <!-- REGISTER FORM -->
+  <div id="register-form">
+    <div class="form-title">Create an account</div>
+    <div class="error-msg" id="register-error"></div>
+    <div class="field">
+      <label for="reg-username">Username</label>
+      <input type="text" id="reg-username" placeholder="Choose a username" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label for="reg-email">Email <span style="color:#52525b;">(optional)</span></label>
+      <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="reg-password">Password</label>
+      <input type="password" id="reg-password" placeholder="Create a password" autocomplete="new-password" />
+    </div>
+    <div class="field">
+      <label for="reg-confirm">Confirm Password</label>
+      <input type="password" id="reg-confirm" placeholder="Repeat password" autocomplete="new-password" />
+    </div>
+    <button class="submit-btn" id="register-btn" onclick="doRegister()">Create Account</button>
+    <div class="toggle-link">
+      Already have an account? <a onclick="showLogin()">Sign in</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  var BASE = window.location.origin;
+
+  // If already logged in, redirect
+  (function() {
+    var token = localStorage.getItem("crag_token");
+    if (token) {
+      // Quick validation — just check it's non-empty; server will reject if expired
+      window.location.replace("/");
+    }
+  })();
+
+  function showLogin() {
+    document.getElementById("login-form").style.display = "block";
+    document.getElementById("register-form").style.display = "none";
+    clearErrors();
+  }
+
+  function showRegister() {
+    document.getElementById("login-form").style.display = "none";
+    document.getElementById("register-form").style.display = "block";
+    clearErrors();
+  }
+
+  function clearErrors() {
+    ["login-error", "register-error"].forEach(function(id) {
+      var el = document.getElementById(id);
+      el.classList.remove("visible");
+      el.textContent = "";
+    });
+  }
+
+  function showError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add("visible");
+  }
+
+  async function doLogin() {
+    clearErrors();
+    var username = document.getElementById("login-username").value.trim();
+    var password = document.getElementById("login-password").value;
+    if (!username || !password) {
+      showError("login-error", "Please enter username and password.");
+      return;
+    }
+    var btn = document.getElementById("login-btn");
+    btn.disabled = true;
+    btn.textContent = "Signing in...";
+    try {
+      var res = await fetch(BASE + "/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      var data = await res.json();
+      if (!res.ok) {
+        showError("login-error", data.detail || "Login failed.");
+        return;
+      }
+      localStorage.setItem("crag_token", data.token);
+      localStorage.setItem("crag_user", JSON.stringify({
+        username: data.username,
+        role: data.role,
+        user_id: data.user_id,
+      }));
+      window.location.replace("/");
+    } catch(e) {
+      showError("login-error", "Network error. Please try again.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Sign In";
+    }
+  }
+
+  async function doRegister() {
+    clearErrors();
+    var username = document.getElementById("reg-username").value.trim();
+    var email = document.getElementById("reg-email").value.trim() || null;
+    var password = document.getElementById("reg-password").value;
+    var confirm = document.getElementById("reg-confirm").value;
+    if (!username || !password) {
+      showError("register-error", "Username and password are required.");
+      return;
+    }
+    if (password !== confirm) {
+      showError("register-error", "Passwords do not match.");
+      return;
+    }
+    var btn = document.getElementById("register-btn");
+    btn.disabled = true;
+    btn.textContent = "Creating account...";
+    try {
+      var res = await fetch(BASE + "/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password, email: email }),
+      });
+      var data = await res.json();
+      if (!res.ok) {
+        showError("register-error", data.detail || "Registration failed.");
+        return;
+      }
+      localStorage.setItem("crag_token", data.token);
+      localStorage.setItem("crag_user", JSON.stringify({
+        username: data.username,
+        role: data.role,
+        user_id: data.id,
+      }));
+      window.location.replace("/");
+    } catch(e) {
+      showError("register-error", "Network error. Please try again.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Create Account";
+    }
+  }
+
+  // Enter key support
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      if (document.getElementById("login-form").style.display !== "none") {
+        doLogin();
+      } else {
+        doRegister();
+      }
+    }
+  });
+</script>
+</body>
+</html>
