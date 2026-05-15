@@ -1,6 +1,6 @@
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from .config import STORAGE_DIR
 
@@ -26,6 +26,36 @@ def init_db():
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
                 sources TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS feedback (
+                id TEXT PRIMARY KEY,
+                chat_id TEXT,
+                message_id TEXT,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                rating INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS query_logs (
+                id TEXT PRIMARY KEY,
+                chat_id TEXT,
+                question TEXT NOT NULL,
+                rewritten_question TEXT,
+                answer_preview TEXT,
+                sources_count INTEGER,
+                latency_ms INTEGER,
+                from_cache INTEGER DEFAULT 0,
+                faithfulness_score INTEGER,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS hallucination_flags (
+                id TEXT PRIMARY KEY,
+                chat_id TEXT,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                faithfulness_score INTEGER NOT NULL,
+                flagged_claims TEXT,
                 created_at TEXT NOT NULL
             );
         """)
@@ -67,3 +97,40 @@ def get_messages(chat_id: str) -> list:
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM messages WHERE chat_id=? ORDER BY created_at ASC", (chat_id,)).fetchall()
     return [dict(r) for r in rows]
+
+def save_feedback(chat_id: str, message_id: str, question: str,
+                  answer: str, rating: int) -> dict:
+    now = datetime.utcnow().isoformat()
+    fid = str(uuid.uuid4())
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO feedback VALUES (?,?,?,?,?,?,?)",
+            (fid, chat_id, message_id, question, answer, rating, now)
+        )
+    return {"id": fid, "rating": rating}
+
+def save_query_log(chat_id: str, question: str, rewritten: str,
+                   answer_preview: str, sources_count: int,
+                   latency_ms: int, from_cache: bool,
+                   faithfulness_score: int | None) -> None:
+    now = datetime.utcnow().isoformat()
+    lid = str(uuid.uuid4())
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO query_logs VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (lid, chat_id, question, rewritten, answer_preview,
+             sources_count, latency_ms, int(from_cache),
+             faithfulness_score, now)
+        )
+
+def purge_old_logs(days: int = 7) -> int:
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM query_logs WHERE created_at < ?", (cutoff,)
+        )
+        deleted = cur.rowcount
+        conn.execute(
+            "DELETE FROM hallucination_flags WHERE created_at < ?", (cutoff,)
+        )
+    return deleted

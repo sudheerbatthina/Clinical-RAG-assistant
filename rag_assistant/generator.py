@@ -27,6 +27,41 @@ RESEARCH_PREFIX = (
 )
 
 
+def score_faithfulness(question: str, answer: str, context: str) -> int:
+    """Score how grounded the answer is in the context. Returns 0-100."""
+    try:
+        client = OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    "You are a faithfulness evaluator for a RAG system. "
+                    "Given a question, an answer, and the source context used to generate it, "
+                    "score how well the answer is grounded in the context.\n\n"
+                    "Score 0-100 where:\n"
+                    "- 90-100: Every claim in the answer is directly supported by the context\n"
+                    "- 70-89: Most claims supported, minor extrapolations\n"
+                    "- 50-69: Some claims supported but notable unsupported additions\n"
+                    "- 0-49: Answer contains significant claims not in the context (hallucination)\n\n"
+                    'Return ONLY a JSON object: {"score": N, "flagged_claims": ["claim1", "claim2"]}\n'
+                    "flagged_claims should list any specific claims NOT found in context (max 3). "
+                    "If score >= 70, flagged_claims can be empty."
+                )},
+                {"role": "user", "content": (
+                    f"Question: {question}\n\n"
+                    f"Context:\n{context[:3000]}\n\n"
+                    f"Answer:\n{answer}"
+                )},
+            ],
+            temperature=0,
+            max_tokens=200,
+        )
+        result = json.loads(response.choices[0].message.content)
+        return max(0, min(100, int(result.get("score", 70))))
+    except Exception:
+        return 70  # neutral fallback on error
+
+
 def build_context(hits: list[dict]) -> str:
     blocks = []
     for i, hit in enumerate(hits, start=1):
@@ -168,9 +203,13 @@ def stream_answer(
         for h in hits
     ]
     yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-    yield f"data: {json.dumps({'type': 'done', 'from_cache': False})}\n\n"
 
-    # 6. Save to semantic cache
+    # 6. Faithfulness score (LLM-evaluated)
+    faithfulness = score_faithfulness(question, full_answer, context)
+    yield f"data: {json.dumps({'type': 'faithfulness', 'score': faithfulness})}\n\n"
+    yield f"data: {json.dumps({'type': 'done', 'from_cache': False, 'faithfulness': faithfulness})}\n\n"
+
+    # 7. Save to semantic cache
     save_semantic_cache(question, {
         "question": question,
         "answer": full_answer,

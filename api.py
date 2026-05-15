@@ -26,6 +26,7 @@ from rag_assistant.cache import cache_backend
 from rag_assistant.db import (
     init_db, create_chat, list_chats, get_chat, delete_chat,
     add_message, get_messages, get_conn,
+    save_feedback, save_query_log, purge_old_logs,
 )
 from rag_assistant.retriever import retrieve
 from rag_assistant.query_rewriter import rewrite_query
@@ -42,6 +43,11 @@ app = FastAPI(title="Healthcare RAG Assistant")
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+    try:
+        deleted = purge_old_logs(days=7)
+        logger.info("Purged %d old query log entries", deleted)
+    except Exception as exc:
+        logger.warning("Log purge failed: %s", exc)
 
     try:
         from rag_assistant.vector_store import migrate_existing_chunks
@@ -595,6 +601,67 @@ def delete_global_document(filename: str):
         return {"deleted": filename, "chunks_removed": len(results["ids"])}
     except HTTPException:
         raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/feedback", dependencies=[Depends(_require_api_key)])
+def submit_feedback(
+    chat_id: str,
+    message_id: str,
+    question: str,
+    answer: str,
+    rating: int,
+):
+    """Save thumbs-up (1) or thumbs-down (-1) feedback for a message."""
+    if rating not in (1, -1):
+        raise HTTPException(status_code=400, detail="rating must be 1 or -1")
+    try:
+        return save_feedback(chat_id, message_id, question, answer, rating)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/admin/logs", dependencies=[Depends(_require_api_key)])
+def admin_logs(days: int = 7, limit: int = 100):
+    """Return recent query logs ordered by created_at DESC."""
+    try:
+        cutoff = (__import__("datetime").datetime.utcnow()
+                  - __import__("datetime").timedelta(days=days)).isoformat()
+        with get_conn() as conn:
+            rows = conn.execute(
+                """SELECT * FROM query_logs
+                   WHERE created_at >= ?
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (cutoff, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/admin/feedback", dependencies=[Depends(_require_api_key)])
+def admin_feedback():
+    """Return all feedback with a summary header."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM feedback ORDER BY created_at DESC"
+            ).fetchall()
+        items = [dict(r) for r in rows]
+        total = len(items)
+        good = sum(1 for r in items if r["rating"] == 1)
+        bad = total - good
+        return {
+            "summary": {
+                "total": total,
+                "good": good,
+                "bad": bad,
+                "good_pct": round(good / total * 100) if total else 0,
+            },
+            "items": items,
+        }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

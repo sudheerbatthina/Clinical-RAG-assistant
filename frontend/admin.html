@@ -665,6 +665,45 @@
       color: #71717a;
       padding: 12px 0;
     }
+
+    /* ===== LOGS & FEEDBACK ===== */
+    .faith-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .faith-badge.high { background: #dcfce7; color: #166534; }
+    .faith-badge.med  { background: #fef9c3; color: #854d0e; }
+    .faith-badge.low  { background: #fee2e2; color: #991b1b; }
+    .faith-badge.none { background: #f4f4f5; color: #71717a; }
+
+    .cache-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .cache-badge.hit  { background: #dcfce7; color: #166534; }
+    .cache-badge.miss { background: #f4f4f5; color: #71717a; }
+
+    .fb-row-good { border-left: 3px solid #22c55e; }
+    .fb-row-bad  { border-left: 3px solid #ef4444; }
+
+    .fb-summary-pill {
+      background: #f4f4f5;
+      border-radius: 99px;
+      padding: 4px 14px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .fb-summary-pill.good { background: #dcfce7; color: #166534; }
+    .fb-summary-pill.bad  { background: #fee2e2; color: #991b1b; }
   </style>
 </head>
 <body>
@@ -687,6 +726,12 @@
     </button>
     <button class="nav-btn" data-tab="querytester" onclick="switchTab('querytester')">
       <span class="nav-icon">&#128269;</span> Query Tester
+    </button>
+    <button class="nav-btn" data-tab="logs" onclick="switchTab('logs')">
+      <span class="nav-icon">&#128203;</span> Logs
+    </button>
+    <button class="nav-btn" data-tab="feedback" onclick="switchTab('feedback')">
+      <span class="nav-icon">&#127775;</span> Feedback
     </button>
   </div>
 
@@ -801,6 +846,26 @@
       <div class="pagination" id="sessions-pagination"></div>
     </div>
 
+    <!-- TAB: LOGS -->
+    <div id="tab-logs" class="tab-panel">
+      <div class="section-block">
+        <div class="sb-header">
+          <div class="sb-title">Query Logs</div>
+          <button class="sb-btn-outline" onclick="loadLogsTab()">&#8635; Refresh</button>
+        </div>
+        <div style="font-size:12px;color:#71717a;margin-bottom:14px;">Showing last 7 days &mdash; logs are automatically purged after 7 days.</div>
+        <div id="logs-table-wrap"><div class="loading-msg">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- TAB: FEEDBACK -->
+    <div id="tab-feedback" class="tab-panel">
+      <div id="feedback-summary" style="display:flex;align-items:center;gap:12px;margin-bottom:20px;font-size:13px;color:#71717a;"></div>
+      <div class="section-block">
+        <div id="feedback-table-wrap"><div class="loading-msg">Loading...</div></div>
+      </div>
+    </div>
+
     <!-- TAB: QUERY TESTER -->
     <div id="tab-querytester" class="tab-panel">
       <div class="qt-form">
@@ -857,6 +922,8 @@
     documents: "Documents",
     sessions: "Sessions",
     querytester: "Query Tester",
+    logs: "Logs",
+    feedback: "Feedback",
   };
 
   // ===== TOAST =====
@@ -917,6 +984,8 @@
     else if (tab === "documents") loadDocsTab();
     else if (tab === "sessions") loadSessionsTab();
     else if (tab === "querytester") loadQueryTesterSessions();
+    else if (tab === "logs") loadLogsTab();
+    else if (tab === "feedback") loadFeedbackTab();
   }
 
   // ===== OVERVIEW =====
@@ -1310,6 +1379,116 @@
 
   function toggleContext() {
     document.getElementById("qt-context-pre").classList.toggle("visible");
+  }
+
+  // ===== LOGS TAB =====
+  async function loadLogsTab() {
+    var container = document.getElementById("logs-table-wrap");
+    container.innerHTML = '<div class="loading-msg">Loading...</div>';
+    try {
+      var res = await fetch(BASE + "/admin/logs?days=7&limit=100", { headers: AUTH });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var logs = await res.json();
+      if (!Array.isArray(logs)) logs = logs.logs || [];
+      if (!logs.length) {
+        container.innerHTML = '<div class="empty-table-msg">No log entries found.</div>';
+        return;
+      }
+      var html = '<table class="admin-table"><thead><tr>' +
+        '<th>Question</th><th>Rewritten</th><th>Sources</th><th>Latency</th><th>Faithfulness</th><th>Cache</th><th>Time</th>' +
+        '</tr></thead><tbody>';
+      logs.forEach(function(row) {
+        var q = row.question || "—";
+        var rq = row.rewritten_question || row.rewritten || "—";
+        var showRewritten = rq !== q && rq !== "—";
+        var sources = row.sources_count != null ? row.sources_count : "—";
+        var latency = row.latency_ms != null ? row.latency_ms + " ms" : "—";
+
+        var faithScore = row.faithfulness_score;
+        var faithHtml;
+        if (faithScore != null) {
+          var fc = faithScore >= 80 ? "high" : faithScore >= 60 ? "med" : "low";
+          faithHtml = '<span class="faith-badge ' + fc + '">' + (faithScore < 60 ? "⚠ " : "") + faithScore + '%</span>';
+        } else {
+          faithHtml = '<span class="faith-badge none">—</span>';
+        }
+
+        var cacheHit = row.from_cache;
+        var cacheHtml = cacheHit
+          ? '<span class="cache-badge hit">HIT</span>'
+          : '<span class="cache-badge miss">MISS</span>';
+
+        var ts = fmtDateTime(row.created_at);
+
+        html += '<tr>' +
+          '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(q) + '">' + esc(q.length > 60 ? q.slice(0, 60) + "…" : q) + '</td>' +
+          '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#71717a;" title="' + esc(rq) + '">' + (showRewritten ? esc(rq.length > 50 ? rq.slice(0, 50) + "…" : rq) : '<span style="color:#d4d4d8;">same</span>') + '</td>' +
+          '<td>' + sources + '</td>' +
+          '<td>' + latency + '</td>' +
+          '<td>' + faithHtml + '</td>' +
+          '<td>' + cacheHtml + '</td>' +
+          '<td style="white-space:nowrap;color:#71717a;">' + esc(ts) + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '<div class="empty-table-msg">Failed to load logs.</div>';
+    }
+  }
+
+  // ===== FEEDBACK TAB =====
+  async function loadFeedbackTab() {
+    var summaryEl = document.getElementById("feedback-summary");
+    var container = document.getElementById("feedback-table-wrap");
+    container.innerHTML = '<div class="loading-msg">Loading...</div>';
+    summaryEl.innerHTML = "";
+    try {
+      var res = await fetch(BASE + "/admin/feedback", { headers: AUTH });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var data = await res.json();
+      var summary = data.summary || {};
+      var items = data.items || [];
+
+      var total = summary.total || 0;
+      var good = summary.good || 0;
+      var bad = summary.bad || 0;
+      var pct = summary.good_pct != null ? Math.round(summary.good_pct) : (total > 0 ? Math.round(good / total * 100) : 0);
+
+      summaryEl.innerHTML =
+        '<span class="fb-summary-pill">' + total + ' total</span>' +
+        '<span class="fb-summary-pill good">&#128077; ' + good + ' good (' + pct + '%)</span>' +
+        '<span class="fb-summary-pill bad">&#128078; ' + bad + ' bad</span>';
+
+      if (!items.length) {
+        container.innerHTML = '<div class="empty-table-msg">No feedback yet.</div>';
+        return;
+      }
+
+      var html = '<table class="admin-table"><thead><tr>' +
+        '<th>Question</th><th>Rating</th><th>Chat</th><th>Time</th>' +
+        '</tr></thead><tbody>';
+      items.forEach(function(fb) {
+        var q = fb.question || "—";
+        var isGood = fb.rating > 0;
+        var rowCls = isGood ? "fb-row-good" : "fb-row-bad";
+        var ratingHtml = isGood
+          ? '<span style="font-size:16px;">&#128077;</span>'
+          : '<span style="font-size:16px;">&#128078;</span>';
+        var chatId = fb.chat_id ? fb.chat_id.slice(0, 8) + "…" : "—";
+        var ts = fmtDateTime(fb.created_at);
+        html += '<tr class="' + rowCls + '">' +
+          '<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(q) + '">' + esc(q.length > 80 ? q.slice(0, 80) + "…" : q) + '</td>' +
+          '<td>' + ratingHtml + '</td>' +
+          '<td style="font-family:monospace;font-size:11px;color:#71717a;">' + esc(chatId) + '</td>' +
+          '<td style="white-space:nowrap;color:#71717a;">' + esc(ts) + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '<div class="empty-table-msg">Failed to load feedback.</div>';
+    }
   }
 
   // ===== INIT =====
