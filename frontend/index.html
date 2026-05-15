@@ -1547,8 +1547,8 @@
         return;
       }
       container.innerHTML = docs.map(function(d) {
-        var name = d.filename || d.name || String(d);
-        var chunks = d.chunks || d.chunk_count || "";
+        var name = d.source || "—";
+        var chunks = d.chunk_count || "";
         return '<div class="doc-item">' +
           '<span class="doc-item-icon">&#128196;</span>' +
           '<div class="doc-item-info">' +
@@ -1589,8 +1589,8 @@
         return;
       }
       container.innerHTML = docs.map(function(d) {
-        var name = d.filename || d.name || String(d);
-        var chunks = d.chunks || d.chunk_count || "";
+        var name = d.source || "—";
+        var chunks = d.chunk_count || "";
         return '<div class="doc-item">' +
           '<span class="doc-item-icon">&#128196;</span>' +
           '<div class="doc-item-info">' +
@@ -2242,8 +2242,8 @@
       if (!Array.isArray(docs)) docs = [];
       var container = document.getElementById("session-doc-chips");
       container.innerHTML = docs.map(function(d) {
-        var name = d.filename || d.name || String(d);
-        var chunks = d.chunks || d.chunk_count || 0;
+        var name = d.source || "—";
+        var chunks = d.chunk_count || 0;
         return '<div class="session-doc-chip">📄 ' + htmlEsc(name) + ' · ' + chunks + ' chunks</div>';
       }).join('');
     } catch(e) {

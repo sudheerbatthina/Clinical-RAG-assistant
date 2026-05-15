@@ -949,8 +949,8 @@
     var html = '<table class="admin-table">' +
       '<thead><tr><th>Filename</th><th>Chunks</th><th>Scope</th><th>Actions</th></tr></thead><tbody>';
     docs.forEach(function(d) {
-      var name = d.filename || d.name || "—";
-      var chunks = d.chunks || d.chunk_count || "—";
+      var name = d.source || "—";
+      var chunks = d.chunk_count || "—";
       var scope = d.scope || "global";
       html += '<tr>' +
         '<td>' + esc(name) + '</td>' +
@@ -1013,8 +1013,8 @@
       }
       var html = '<table class="admin-table"><thead><tr><th>Filename</th><th>Chunks</th><th>Action</th></tr></thead><tbody>';
       docs.forEach(function(d) {
-        var name = d.filename || d.name || "—";
-        var chunks = d.chunks || d.chunk_count || "—";
+        var name = d.source || "—";
+        var chunks = d.chunk_count || "—";
         html += '<tr><td>' + esc(name) + '</td><td>' + chunks + '</td>' +
           '<td><button class="tbl-delete-btn" onclick="docsTabDeleteKb(\'' + esc(name).replace(/'/g,"&#39;") + '\')">&#128465; Delete</button></td></tr>';
       });
@@ -1075,8 +1075,8 @@
             rows.push({
               chatTitle: sess.title || "Untitled",
               chatId: sess.id,
-              filename: d.filename || d.name || "—",
-              chunks: d.chunks || d.chunk_count || "—",
+              filename: d.source || "—",
+              chunks: d.chunk_count || "—",
             });
           });
         } catch(e2) {}
