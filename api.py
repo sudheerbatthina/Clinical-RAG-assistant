@@ -13,20 +13,22 @@ import logging
 import threading
 
 import chromadb
-from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Security, Depends, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from rag_assistant.generator import answer_question, stream_answer
+from rag_assistant.generator import answer_question, stream_answer, build_context
 from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME, DATA_DIR, STORAGE_DIR
 from rag_assistant.cache import cache_backend
 from rag_assistant.db import (
     init_db, create_chat, list_chats, get_chat, delete_chat,
-    add_message, get_messages,
+    add_message, get_messages, get_conn,
 )
+from rag_assistant.retriever import retrieve
+from rag_assistant.query_rewriter import rewrite_query
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -97,6 +99,12 @@ get_api_key = _require_api_key
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
+
+class QueryDebugRequest(BaseModel):
+    question: str
+    top_k: int = 5
+    session_id: str = "global"
+
 
 class QueryRequest(BaseModel):
     question: str
@@ -378,6 +386,159 @@ def documents():
         return [{"source": src, "chunk_count": cnt} for src, cnt in sorted(counts.items())]
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/admin/stats", dependencies=[Depends(_require_api_key)])
+def admin_stats():
+    """System-wide stats: chunk counts, chat/message counts, document list, cache info."""
+    try:
+        chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+        total_chunks = collection.count()
+
+        global_results = collection.get(
+            where={"session_id": {"$eq": "global"}},
+            include=["metadatas"],
+        )
+        global_chunks = len(global_results["ids"])
+        counts: dict[str, int] = {}
+        for meta in global_results["metadatas"]:
+            src = meta.get("source", "unknown")
+            counts[src] = counts.get(src, 0) + 1
+        documents = [{"source": s, "chunk_count": c} for s, c in sorted(counts.items())]
+
+        with get_conn() as conn:
+            total_chats = conn.execute("SELECT COUNT(*) FROM chats").fetchone()[0]
+            total_messages = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+
+        return {
+            "total_chunks": total_chunks,
+            "global_chunks": global_chunks,
+            "session_chunks": total_chunks - global_chunks,
+            "total_chats": total_chats,
+            "total_messages": total_messages,
+            "documents": documents,
+            "cache_backend": cache_backend(),
+            "storage_dir": str(STORAGE_DIR),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete("/admin/documents", dependencies=[Depends(_require_api_key)])
+def delete_global_document_by_param(filename: str = Query(..., description="Exact source filename to delete")):
+    """Delete all chunks for a given filename (query param: ?filename=X)."""
+    try:
+        chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+        results = collection.get(where={"source": {"$eq": filename}}, include=[])
+        if not results["ids"]:
+            raise HTTPException(status_code=404, detail=f"{filename} not found")
+        collection.delete(ids=results["ids"])
+        return {"deleted": filename, "chunks_removed": len(results["ids"])}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/admin/reindex", dependencies=[Depends(_require_api_key)])
+def admin_reindex():
+    """Re-index all PDFs in DATA_DIR with session_id='global' in a background thread."""
+    pdf_files = list(DATA_DIR.glob("*.pdf")) if DATA_DIR.exists() else []
+    filenames = [f.name for f in pdf_files]
+
+    def _bg():
+        try:
+            from rag_assistant.vector_store import index_all_pdfs
+            result = index_all_pdfs()
+            count = result.count() if result is not None else 0
+            logger.info("Admin reindex complete: %d chunks", count)
+        except Exception as e:
+            logger.error("Admin reindex failed: %s", e)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return {"status": "reindexing_started", "files": filenames}
+
+
+@app.post("/admin/query-debug", dependencies=[Depends(_require_api_key)])
+def admin_query_debug(request: QueryDebugRequest):
+    """Return full retrieval debug info — rewritten query, chunks, context — without calling the LLM."""
+    try:
+        rewritten = rewrite_query(request.question)
+        hits = retrieve(rewritten, top_k=request.top_k, session_id=request.session_id)
+        context = build_context(hits)
+        return {
+            "original_question": request.question,
+            "rewritten_question": rewritten,
+            "chunks_retrieved": [
+                {
+                    "chunk_id": h["chunk_id"],
+                    "source": h["metadata"].get("source", ""),
+                    "page": h["metadata"].get("page_number", 0),
+                    "chunk_type": h["metadata"].get("chunk_type", "text"),
+                    "session_id": h["metadata"].get("session_id", "global"),
+                    "content_preview": h["content"][:200],
+                    "distance": round(h.get("distance", 0.0), 4),
+                }
+                for h in hits
+            ],
+            "context_sent_to_llm": context,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/admin/sessions", dependencies=[Depends(_require_api_key)])
+def admin_sessions():
+    """All chats with message counts and session-scoped document counts."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute("""
+                SELECT c.id, c.title, c.created_at, c.updated_at,
+                       COUNT(m.id) as message_count
+                FROM chats c
+                LEFT JOIN messages m ON m.chat_id = c.id
+                GROUP BY c.id
+                ORDER BY c.updated_at DESC
+            """).fetchall()
+        chats = [dict(r) for r in rows]
+
+        chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+        for chat in chats:
+            try:
+                res = collection.get(
+                    where={"session_id": {"$eq": chat["id"]}},
+                    include=["metadatas"],
+                )
+                sources = {m.get("source") for m in res["metadatas"]}
+                chat["document_count"] = len(sources)
+            except Exception:
+                chat["document_count"] = 0
+
+        return chats
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete("/admin/sessions/{chat_id}", dependencies=[Depends(_require_api_key)])
+def admin_delete_session(chat_id: str):
+    """Delete a chat + messages from SQLite and its session chunks from Chroma."""
+    if not get_chat(chat_id):
+        raise HTTPException(status_code=404, detail="Chat not found")
+    chunks_removed = 0
+    try:
+        chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+        res = collection.get(where={"session_id": {"$eq": chat_id}}, include=[])
+        if res["ids"]:
+            collection.delete(ids=res["ids"])
+        chunks_removed = len(res["ids"])
+    except Exception as e:
+        logger.warning("Failed to remove session chunks for %s: %s", chat_id, e)
+    delete_chat(chat_id)
+    return {"deleted": chat_id, "chunks_removed": chunks_removed}
 
 
 @app.delete("/admin/documents/{filename}", dependencies=[Depends(_require_api_key)])

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clinical RAG — Admin</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --sidebar-bg: #0f0f10;
+  --sidebar-hover: #1a1a1c;
+  --sidebar-active: #1e1e22;
+  --sidebar-border: #2a2a2e;
+  --text-primary: #f4f4f5;
+  --text-muted: #71717a;
+  --text-dim: #3f3f46;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  display: flex; height: 100vh; overflow: hidden;
+  background: #f9f9fb; color: #18181b;
+}
+
+/* ─── Nav sidebar ─────────────────────────────────────────────────────────── */
+#admin-nav {
+  width: 220px; min-width: 220px;
+  background: var(--sidebar-bg);
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.an-header { padding: 18px 16px 14px; border-bottom: 1px solid var(--sidebar-border); }
+.an-title { display: block; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.an-sub   { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+nav { flex: 1; padding: 8px; }
+.an-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 7px;
+  font-size: 13px; color: #a1a1aa; cursor: pointer;
+  text-decoration: none; margin-bottom: 2px;
+  transition: background 0.1s, color 0.1s;
+  border: none; background: none; width: 100%; text-align: left;
+  border-left: 2px solid transparent;
+}
+.an-link:hover  { background: var(--sidebar-hover); color: var(--text-primary); }
+.an-link.active { background: var(--sidebar-active); color: var(--text-primary); border-left-color: var(--accent); }
+
+.an-footer { padding: 12px 16px; border-top: 1px solid var(--sidebar-border); }
+.an-back { font-size: 12px; color: var(--text-muted); text-decoration: none; }
+.an-back:hover { color: var(--text-primary); }
+
+/* ─── Main area ───────────────────────────────────────────────────────────── */
+#admin-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+#admin-header {
+  padding: 14px 28px; border-bottom: 1px solid #e4e4e7;
+  background: #fff; flex-shrink: 0;
+}
+#admin-header h1 { font-size: 17px; font-weight: 600; }
+
+.tab-content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ─── Stat cards ──────────────────────────────────────────────────────────── */
+.stat-cards {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 16px; margin-bottom: 24px;
+}
+.stat-card {
+  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
+  padding: 20px; text-align: center;
+}
+.sc-value { font-size: 30px; font-weight: 700; color: var(--accent); }
+.sc-label { font-size: 12px; color: #71717a; margin-top: 4px; }
+
+/* ─── Two-column layout ───────────────────────────────────────────────────── */
+.ov-columns { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+
+/* ─── Section blocks ──────────────────────────────────────────────────────── */
+.section-block {
+  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
+  padding: 20px; margin-bottom: 20px;
+}
+.sb-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+}
+.section-title { font-size: 14px; font-weight: 600; color: #18181b; margin-bottom: 12px; }
+.section-note  { font-size: 12px; color: #71717a; margin-bottom: 12px; }
+
+/* ─── Tables ──────────────────────────────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  text-align: left; padding: 8px 12px;
+  font-size: 11px; font-weight: 600; color: #71717a;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  border-bottom: 1px solid #f4f4f5;
+}
+.data-table td { padding: 10px 12px; border-bottom: 1px solid #f9f9fb; color: #3f3f46; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #fafafa; }
+.table-empty { color: #a1a1aa; font-style: italic; font-size: 13px; }
+
+/* ─── System info ─────────────────────────────────────────────────────────── */
+.sys-info {
+  background: #fafafa; border-radius: 8px; padding: 14px; margin-bottom: 14px;
+}
+.si-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid #f4f4f5;
+}
+.si-row:last-child { border-bottom: none; }
+.si-key { font-size: 12px; color: #71717a; }
+.si-val { font-size: 12px; font-weight: 500; color: #18181b; font-family: monospace; max-width: 160px; word-break: break-all; text-align: right; }
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.12s;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { background: #e4e4e7; color: #a1a1aa; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; background: transparent; color: var(--accent);
+  border: 1.5px solid var(--accent); border-radius: 8px; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background 0.12s;
+}
+.btn-secondary:hover { background: rgba(99,102,241,0.06); }
+
+.btn-danger {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px; background: transparent; color: #ef4444;
+  border: 1px solid #fca5a5; border-radius: 6px; font-size: 12px;
+  cursor: pointer; transition: background 0.12s;
+}
+.btn-danger:hover { background: #fef2f2; }
+
+.btn-text { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0 4px; }
+
+/* ─── Status ──────────────────────────────────────────────────────────────── */
+.status-ok  { font-size: 12px; color: #22c55e; margin-top: 8px; }
+.status-err { font-size: 12px; color: #ef4444; margin-top: 8px; }
+.loading-msg { font-size: 13px; color: #71717a; padding: 20px; text-align: center; }
+
+/* ─── Sessions ────────────────────────────────────────────────────────────── */
+.sess-controls { margin-bottom: 16px; }
+.search-input {
+  width: 300px; padding: 8px 14px;
+  border: 1px solid #e4e4e7; border-radius: 8px;
+  font-size: 13px; outline: none; transition: border-color 0.15s;
+}
+.search-input:focus { border-color: #a5b4fc; }
+
+.pagination { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; align-items: center; font-size: 13px; }
+.page-btn {
+  padding: 5px 12px; border: 1px solid #e4e4e7;
+  border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px;
+}
+.page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ─── Query tester ────────────────────────────────────────────────────────── */
+.qt-form {
+  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
+  padding: 20px; margin-bottom: 20px;
+}
+.qt-textarea {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid #e4e4e7; border-radius: 8px;
+  font-size: 14px; font-family: inherit; resize: vertical;
+  outline: none; transition: border-color 0.15s; margin-bottom: 12px;
+}
+.qt-textarea:focus { border-color: #a5b4fc; }
+.qt-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qt-controls label { font-size: 13px; color: #52525b; display: flex; align-items: center; gap: 8px; }
+.qt-select { padding: 6px 10px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; }
+.qt-number { width: 60px; padding: 6px 10px; border: 1px solid #e4e4e7; border-radius: 6px; font-size: 13px; }
+
+.qt-section {
+  background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
+  padding: 20px; margin-bottom: 14px;
+}
+.qt-section-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #71717a;
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+}
+.qt-rewritten-text {
+  font-size: 14px; color: #18181b; line-height: 1.6;
+  background: #f9f9fb; padding: 12px; border-radius: 8px;
+}
+
+.chunk-item { border: 1px solid #f4f4f5; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.chunk-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: #fafafa; cursor: pointer;
+  transition: background 0.1s;
+}
+.chunk-header:hover { background: #f4f4f5; }
+.chunk-meta { font-size: 13px; color: #18181b; font-weight: 500; }
+.chunk-arrow { display: inline-block; transition: transform 0.18s; margin-left: 6px; }
+.chunk-item.open .chunk-arrow { transform: rotate(180deg); }
+.chunk-dist { display: flex; align-items: center; gap: 8px; }
+.dist-score { font-size: 12px; font-family: monospace; }
+.dist-bar { width: 56px; height: 6px; border-radius: 3px; background: #e4e4e7; }
+.dist-fill { height: 100%; border-radius: 3px; }
+.chunk-body {
+  display: none; padding: 12px 14px;
+  font-size: 13px; color: #52525b; line-height: 1.6;
+  white-space: pre-wrap; border-top: 1px solid #f4f4f5;
+}
+.chunk-item.open .chunk-body { display: block; }
+
+.qt-context-pre {
+  font-size: 12px; background: #f9f9fb; border-radius: 8px;
+  padding: 14px; white-space: pre-wrap; word-break: break-word;
+  max-height: 400px; overflow-y: auto; color: #52525b; line-height: 1.6;
+  margin-top: 10px;
+}
+
+/* ─── Scope badge ─────────────────────────────────────────────────────────── */
+.scope-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 99px;
+  font-size: 11px; font-weight: 500;
+}
+.scope-global  { background: #eff6ff; color: #2563eb; }
+.scope-session { background: #faf5ff; color: #7c3aed; }
+
+/* ─── Toast ───────────────────────────────────────────────────────────────── */
+#toast-container {
+  position: fixed; top: 20px; right: 20px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.toast {
+  background: #fff; border: 1px solid #e4e4e7; border-radius: 8px;
+  padding: 10px 16px; font-size: 13px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+  display: flex; align-items: center; gap: 8px; min-width: 240px;
+  animation: toastIn 0.2s ease;
+}
+.toast.success { border-left: 3px solid #22c55e; }
+.toast.error   { border-left: 3px solid #ef4444; }
+@keyframes toastIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SIDEBAR -->
+<aside id="admin-nav">
+  <div class="an-header">
+    <span class="an-title">Clinical RAG</span>
+    <span class="an-sub">Admin Panel</span>
+  </div>
+  <nav>
+    <button class="an-link active" data-tab="overview"    onclick="switchTab('overview')">📊 Overview</button>
+    <button class="an-link"        data-tab="documents"   onclick="switchTab('documents')">📄 Documents</button>
+    <button class="an-link"        data-tab="sessions"    onclick="switchTab('sessions')">💬 Sessions</button>
+    <button class="an-link"        data-tab="querytester" onclick="switchTab('querytester')">🔍 Query Tester</button>
+  </nav>
+  <div class="an-footer">
+    <a href="/" class="an-back">← Back to Chat</a>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════ MAIN -->
+<main id="admin-main">
+  <div id="admin-header">
+    <h1 id="tab-title">Overview</h1>
+  </div>
+
+  <div class="tab-content">
+
+    <!-- ── TAB: Overview ── -->
+    <div id="tab-overview" class="tab-panel active">
+      <div class="stat-cards">
+        <div class="stat-card"><div class="sc-value" id="st-total-chunks">—</div><div class="sc-label">Total Chunks</div></div>
+        <div class="stat-card"><div class="sc-value" id="st-global-chunks">—</div><div class="sc-label">Global Chunks</div></div>
+        <div class="stat-card"><div class="sc-value" id="st-total-chats">—</div><div class="sc-label">Total Chats</div></div>
+        <div class="stat-card"><div class="sc-value" id="st-total-messages">—</div><div class="sc-label">Total Messages</div></div>
+      </div>
+      <div class="ov-columns">
+        <div class="section-block">
+          <h2 class="section-title">Indexed Documents</h2>
+          <table class="data-table">
+            <thead><tr><th>Filename</th><th>Chunks</th><th>Scope</th><th></th></tr></thead>
+            <tbody id="ov-docs-table">
+              <tr><td colspan="4" class="table-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div class="section-block">
+            <h2 class="section-title">System</h2>
+            <div class="sys-info">
+              <div class="si-row"><span class="si-key">Cache Backend</span><span class="si-val" id="si-cache">—</span></div>
+              <div class="si-row"><span class="si-key">Storage Dir</span><span class="si-val" id="si-storage">—</span></div>
+              <div class="si-row"><span class="si-key">Vector DB</span><span class="si-val">ChromaDB</span></div>
+              <div class="si-row"><span class="si-key">Session Chunks</span><span class="si-val" id="si-session-chunks">—</span></div>
+            </div>
+            <button class="btn-primary" id="reindex-btn" onclick="adminReindex()">🔄 Re-index All</button>
+            <div id="reindex-status" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Documents ── -->
+    <div id="tab-documents" class="tab-panel">
+      <div class="section-block">
+        <div class="sb-header">
+          <h2 class="section-title" style="margin-bottom:0">Knowledge Base</h2>
+          <button class="btn-secondary" onclick="document.getElementById('kb-upload-input').click()">+ Upload PDF</button>
+          <input type="file" id="kb-upload-input" accept=".pdf" style="display:none" onchange="uploadKbFile()" />
+        </div>
+        <p class="section-note">Global documents available to all chats (session_id = "global").</p>
+        <table class="data-table">
+          <thead><tr><th>Filename</th><th>Chunks</th><th></th></tr></thead>
+          <tbody id="kb-docs-table">
+            <tr><td colspan="3" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section-block">
+        <h2 class="section-title">Session Documents</h2>
+        <p class="section-note">Documents uploaded to specific chat sessions. To delete, use the Sessions tab.</p>
+        <table class="data-table">
+          <thead><tr><th>Chat Title</th><th>Filename</th><th>Chunks</th><th>Chat ID</th></tr></thead>
+          <tbody id="session-docs-table">
+            <tr><td colspan="4" class="table-empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── TAB: Sessions ── -->
+    <div id="tab-sessions" class="tab-panel">
+      <div class="sess-controls">
+        <input type="text" id="sess-search" placeholder="Search by title…"
+               oninput="filterSessions()" class="search-input" />
+      </div>
+      <div class="section-block" style="padding:0;overflow:hidden">
+        <table class="data-table">
+          <thead>
+            <tr><th>Title</th><th>Messages</th><th>Docs</th><th>Created</th><th>Last Active</th><th></th></tr>
+          </thead>
+          <tbody id="sessions-table">
+            <tr><td colspan="6" class="table-empty" style="padding:16px">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="sessions-pagination" class="pagination"></div>
+    </div>
+
+    <!-- ── TAB: Query Tester ── -->
+    <div id="tab-querytester" class="tab-panel">
+      <div class="qt-form">
+        <textarea id="qt-question" rows="3"
+          placeholder="Enter a question to debug retrieval…" class="qt-textarea"></textarea>
+        <div class="qt-controls">
+          <label>Session scope:
+            <select id="qt-session" class="qt-select">
+              <option value="global">global</option>
+            </select>
+          </label>
+          <label>Top K:
+            <input type="number" id="qt-topk" value="5" min="1" max="20" class="qt-number" />
+          </label>
+          <button class="btn-primary" id="qt-run-btn" onclick="runQueryDebug()">Run →</button>
+        </div>
+      </div>
+      <div id="qt-loading" style="display:none" class="loading-msg">Fetching retrieval results…</div>
+      <div id="qt-results" style="display:none">
+        <div class="qt-section">
+          <div class="qt-section-label">Rewritten Query</div>
+          <div id="qt-rewritten" class="qt-rewritten-text"></div>
+        </div>
+        <div class="qt-section">
+          <div class="qt-section-label">
+            Retrieved Chunks (<span id="qt-chunk-count">0</span>)
+          </div>
+          <div id="qt-chunks"></div>
+        </div>
+        <div class="qt-section">
+          <div class="qt-section-label">
+            Context Sent to LLM
+            <button class="btn-text" onclick="toggleContext()">▾ Show / Hide</button>
+          </div>
+          <pre id="qt-context" style="display:none" class="qt-context-pre"></pre>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tab-content -->
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+const API_KEY  = "dev-key-123";
+const BASE     = window.location.origin;
+const AUTH     = { "X-API-Key": API_KEY };
+const AUTHJSON = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
+
+const PAGE_SIZE = 20;
+let allSessions      = [];
+let filteredSessions = [];
+let currentPage      = 0;
+
+// ── Tab navigation ─────────────────────────────────────────────────────────
+const TAB_TITLES = {
+  overview:    "Overview",
+  documents:   "Documents",
+  sessions:    "Sessions",
+  querytester: "Query Tester",
+};
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".an-link").forEach(el => el.classList.remove("active"));
+  document.getElementById(`tab-${tab}`).classList.add("active");
+  document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
+  document.getElementById("tab-title").textContent = TAB_TITLES[tab];
+  if (tab === "overview")    loadStats();
+  if (tab === "documents")   loadDocumentsTab();
+  if (tab === "sessions")    loadSessions();
+  if (tab === "querytester") loadSessionsForQT();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(function init() { loadStats(); })();
+
+// ── OVERVIEW ───────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch(`${BASE}/admin/stats`, { headers: AUTH });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+
+    document.getElementById("st-total-chunks").textContent   = d.total_chunks;
+    document.getElementById("st-global-chunks").textContent  = d.global_chunks;
+    document.getElementById("st-total-chats").textContent    = d.total_chats;
+    document.getElementById("st-total-messages").textContent = d.total_messages;
+    document.getElementById("si-cache").textContent          = d.cache_backend;
+    document.getElementById("si-storage").textContent        = d.storage_dir;
+    document.getElementById("si-session-chunks").textContent = d.session_chunks;
+
+    const tbody = document.getElementById("ov-docs-table");
+    if (!d.documents.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="table-empty" style="padding:12px">No documents indexed.</td></tr>';
+    } else {
+      tbody.innerHTML = d.documents.map(doc => `
+        <tr>
+          <td>${esc(doc.source)}</td>
+          <td>${doc.chunk_count}</td>
+          <td><span class="scope-badge scope-global">global</span></td>
+          <td><button class="btn-danger" onclick="deleteKbDoc('${esc(doc.source)}')">🗑</button></td>
+        </tr>`).join("");
+    }
+  } catch (err) {
+    showToast("Failed to load stats: " + err.message, "error");
+  }
+}
+
+async function adminReindex() {
+  const btn    = document.getElementById("reindex-btn");
+  const status = document.getElementById("reindex-status");
+  btn.disabled = true; btn.textContent = "Reindexing…";
+  status.style.display = "none";
+  try {
+    const r = await fetch(`${BASE}/admin/reindex`, { method: "POST", headers: AUTH });
+    const d = await r.json();
+    status.className = "status-ok";
+    status.textContent = `✓ Started for ${d.files.length} file(s)${d.files.length ? ": " + d.files.join(", ") : ""}`;
+    status.style.display = "block";
+    showToast("Reindexing started in background", "success");
+  } catch (err) {
+    showToast("Reindex failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "🔄 Re-index All";
+  }
+}
+
+// ── DOCUMENTS TAB ──────────────────────────────────────────────────────────
+async function loadDocumentsTab() {
+  await Promise.all([loadKbDocs(), loadSessionDocs()]);
+}
+
+async function loadKbDocs() {
+  const tbody = document.getElementById("kb-docs-table");
+  tbody.innerHTML = '<tr><td colspan="3" class="table-empty">Loading…</td></tr>';
+  try {
+    const r    = await fetch(`${BASE}/admin/documents`, { headers: AUTH });
+    const docs = await r.json();
+    if (!docs.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="table-empty" style="padding:12px">No documents in knowledge base.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = docs.map(d => `
+      <tr>
+        <td>${esc(d.source)}</td>
+        <td>${d.chunk_count}</td>
+        <td><button class="btn-danger" onclick="deleteKbDoc('${esc(d.source)}')">🗑 Delete</button></td>
+      </tr>`).join("");
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="3" class="table-empty">Error: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+async function deleteKbDoc(filename) {
+  if (!confirm(`Delete all chunks for "${filename}"? This cannot be undone.`)) return;
+  try {
+    const r = await fetch(
+      `${BASE}/admin/documents?filename=${encodeURIComponent(filename)}`,
+      { method: "DELETE", headers: AUTH }
+    );
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    showToast(`Deleted ${d.chunks_removed} chunks for "${filename}"`, "success");
+    loadStats();
+    loadKbDocs();
+  } catch (err) {
+    showToast("Delete failed: " + err.message, "error");
+  }
+}
+
+async function uploadKbFile() {
+  const input = document.getElementById("kb-upload-input");
+  const file  = input.files[0];
+  if (!file) return;
+  input.value = "";
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    showToast(`Uploading ${file.name}…`, "success");
+    const r = await fetch(`${BASE}/upload`, { method: "POST", headers: AUTH, body: form });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.detail); }
+    showToast(`${file.name} uploaded — indexing in background`, "success");
+    setTimeout(loadKbDocs, 5000);
+    setTimeout(loadStats,  5000);
+  } catch (err) {
+    showToast("Upload failed: " + err.message, "error");
+  }
+}
+
+async function loadSessionDocs() {
+  const tbody = document.getElementById("session-docs-table");
+  tbody.innerHTML = '<tr><td colspan="4" class="table-empty">Loading…</td></tr>';
+  try {
+    const sessR    = await fetch(`${BASE}/admin/sessions`, { headers: AUTH });
+    const sessions = await sessR.json();
+    const rows     = [];
+    await Promise.all(sessions.filter(s => s.document_count > 0).map(async s => {
+      try {
+        const r    = await fetch(`${BASE}/chats/${s.id}/documents`, { headers: AUTH });
+        const docs = await r.json();
+        docs.forEach(d => rows.push({ title: s.title, id: s.id, source: d.source, chunk_count: d.chunk_count }));
+      } catch {}
+    }));
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="table-empty" style="padding:12px">No session documents found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</td>
+        <td>${esc(r.source)}</td>
+        <td>${r.chunk_count}</td>
+        <td><code style="font-size:11px;color:#71717a">${r.id.slice(0, 8)}…</code></td>
+      </tr>`).join("");
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" class="table-empty">Error: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+// ── SESSIONS TAB ───────────────────────────────────────────────────────────
+async function loadSessions() {
+  const tbody = document.getElementById("sessions-table");
+  tbody.innerHTML = '<tr><td colspan="6" class="table-empty" style="padding:16px">Loading…</td></tr>';
+  try {
+    const r   = await fetch(`${BASE}/admin/sessions`, { headers: AUTH });
+    allSessions      = await r.json();
+    filteredSessions = [...allSessions];
+    currentPage      = 0;
+    renderSessionsPage();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="table-empty" style="padding:16px">Error: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function filterSessions() {
+  const q          = document.getElementById("sess-search").value.toLowerCase();
+  filteredSessions = q ? allSessions.filter(s => s.title.toLowerCase().includes(q)) : [...allSessions];
+  currentPage      = 0;
+  renderSessionsPage();
+}
+
+function renderSessionsPage() {
+  const tbody      = document.getElementById("sessions-table");
+  const pagination = document.getElementById("sessions-pagination");
+  const start      = currentPage * PAGE_SIZE;
+  const page       = filteredSessions.slice(start, start + PAGE_SIZE);
+
+  if (!page.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty" style="padding:16px">No sessions found.</td></tr>';
+    pagination.innerHTML = "";
+    return;
+  }
+
+  tbody.innerHTML = page.map(s => `
+    <tr>
+      <td>
+        <a href="/" target="_blank"
+           style="color:var(--accent);text-decoration:none;font-weight:500"
+           title="${esc(s.title)}">${esc(s.title.length > 48 ? s.title.slice(0, 48) + "…" : s.title)}</a>
+      </td>
+      <td>${s.message_count}</td>
+      <td>${s.document_count}</td>
+      <td>${fmtDate(s.created_at)}</td>
+      <td>${fmtDate(s.updated_at)}</td>
+      <td><button class="btn-danger" onclick="deleteSession('${s.id}')">🗑</button></td>
+    </tr>`).join("");
+
+  const totalPages = Math.ceil(filteredSessions.length / PAGE_SIZE);
+  if (totalPages <= 1) { pagination.innerHTML = ""; return; }
+
+  let html = `<span style="color:#71717a">${filteredSessions.length} sessions · page ${currentPage + 1}/${totalPages}</span>`;
+  html += `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 0 ? "disabled" : ""}>‹ Prev</button>`;
+  for (let i = 0; i < Math.min(totalPages, 10); i++) {
+    html += `<button class="page-btn${i === currentPage ? " active" : ""}" onclick="goPage(${i})">${i + 1}</button>`;
+  }
+  html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? "disabled" : ""}>Next ›</button>`;
+  pagination.innerHTML = html;
+}
+
+function goPage(p) { currentPage = p; renderSessionsPage(); }
+
+async function deleteSession(chatId) {
+  if (!confirm("Delete this session, all its messages, and its uploaded documents? This cannot be undone.")) return;
+  try {
+    const r = await fetch(`${BASE}/admin/sessions/${chatId}`, { method: "DELETE", headers: AUTH });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    showToast(`Session deleted. ${d.chunks_removed} chunks removed.`, "success");
+    loadSessions();
+  } catch (err) {
+    showToast("Delete failed: " + err.message, "error");
+  }
+}
+
+// ── QUERY TESTER ───────────────────────────────────────────────────────────
+async function loadSessionsForQT() {
+  try {
+    const r        = await fetch(`${BASE}/admin/sessions`, { headers: AUTH });
+    const sessions = await r.json();
+    const sel      = document.getElementById("qt-session");
+    const existing = new Set(Array.from(sel.options).map(o => o.value));
+    sessions.forEach(s => {
+      if (!existing.has(s.id)) {
+        const opt = new Option(
+          `${s.title.slice(0, 28)}… (${s.id.slice(0, 6)})`,
+          s.id
+        );
+        sel.appendChild(opt);
+      }
+    });
+  } catch {}
+}
+
+async function runQueryDebug() {
+  const question = document.getElementById("qt-question").value.trim();
+  if (!question) return;
+
+  const btn = document.getElementById("qt-run-btn");
+  btn.disabled = true;
+  document.getElementById("qt-loading").style.display  = "block";
+  document.getElementById("qt-results").style.display  = "none";
+
+  try {
+    const r = await fetch(`${BASE}/admin/query-debug`, {
+      method: "POST",
+      headers: AUTHJSON,
+      body: JSON.stringify({
+        question,
+        top_k:      parseInt(document.getElementById("qt-topk").value),
+        session_id: document.getElementById("qt-session").value,
+      }),
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.detail || r.statusText); }
+    const data = await r.json();
+
+    document.getElementById("qt-rewritten").textContent    = data.rewritten_question;
+    document.getElementById("qt-chunk-count").textContent  = data.chunks_retrieved.length;
+    document.getElementById("qt-context").textContent      = data.context_sent_to_llm;
+    document.getElementById("qt-context").style.display    = "none";
+
+    document.getElementById("qt-chunks").innerHTML = data.chunks_retrieved.map((c, i) => {
+      const dist    = c.distance;
+      const color   = dist < 0.3 ? "#22c55e" : dist < 0.5 ? "#f59e0b" : "#ef4444";
+      const fillPct = Math.min(100, Math.round(dist * 100));
+      return `
+        <div class="chunk-item" onclick="this.classList.toggle('open')">
+          <div class="chunk-header">
+            <span class="chunk-meta">
+              #${i + 1} &nbsp; ${esc(c.source)} · p.${c.page} · ${esc(c.chunk_type)}
+              <span class="chunk-arrow">▾</span>
+            </span>
+            <span class="chunk-dist">
+              <span class="dist-score" style="color:${color}">dist: ${dist.toFixed(3)}</span>
+              <span class="dist-bar">
+                <span class="dist-fill" style="width:${fillPct}%;background:${color}"></span>
+              </span>
+            </span>
+          </div>
+          <div class="chunk-body">${esc(c.content_preview)}${c.content_preview.length >= 200 ? "…" : ""}</div>
+        </div>`;
+    }).join("");
+
+    document.getElementById("qt-results").style.display = "block";
+  } catch (err) {
+    showToast("Query debug failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    document.getElementById("qt-loading").style.display = "none";
+  }
+}
+
+function toggleContext() {
+  const el = document.getElementById("qt-context");
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+// ── Shared helpers ─────────────────────────────────────────────────────────
+function showToast(msg, type = "success") {
+  const container = document.getElementById("toast-container");
+  const toast     = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = (type === "success" ? "✓  " : "✕  ") + msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4500);
+}
+
+function esc(v) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  return new Date(iso.endsWith("Z") ? iso : iso + "Z")
+    .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+</script>
+</body>
+</html>

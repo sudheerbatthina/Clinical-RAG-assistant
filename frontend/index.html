@@ -272,6 +272,93 @@ body {
   padding: 3px 9px;
   border-radius: 99px;
 }
+.chip-expandable {
+  flex-direction: column;
+  align-items: flex-start;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.chip-expandable:hover { background: #ebebeb; }
+.chip-arrow { display: inline-block; transition: transform 0.18s; margin-left: 3px; }
+.chip-expandable.open .chip-arrow { transform: rotate(180deg); }
+.chip-pages { display: none; padding-top: 4px; font-weight: 400; color: #71717a; }
+.chip-expandable.open .chip-pages { display: block; }
+
+/* Documents slide panel */
+#docs-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.15);
+  z-index: 100; display: none;
+}
+#docs-backdrop.open { display: block; }
+#docs-panel {
+  position: fixed; top: 0; right: -360px; width: 340px; height: 100vh;
+  background: #fff; border-left: 1px solid #e4e4e7;
+  z-index: 101; display: flex; flex-direction: column;
+  transition: right 0.22s ease;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+  overflow-y: auto;
+}
+#docs-panel.open { right: 0; }
+.dp-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 15px 20px; border-bottom: 1px solid #f4f4f5;
+  font-size: 14px; font-weight: 600; color: #18181b; flex-shrink: 0;
+}
+.dp-close {
+  background: none; border: none; color: #71717a; cursor: pointer;
+  font-size: 16px; padding: 2px 6px; border-radius: 4px;
+}
+.dp-close:hover { color: #18181b; background: #f4f4f5; }
+.dp-section { padding: 16px 20px; border-bottom: 1px solid #f4f4f5; }
+.dp-section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #71717a; margin-bottom: 3px;
+}
+.dp-section-sub { font-size: 12px; color: #a1a1aa; margin-bottom: 12px; }
+.dp-doc-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; border-bottom: 1px solid #f9f9fb;
+}
+.dp-doc-item:last-child { border-bottom: none; }
+.dp-doc-name { font-size: 13px; color: #18181b; display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.dp-doc-count { font-size: 11px; color: #a1a1aa; white-space: nowrap; }
+.dp-doc-del {
+  background: none; border: none; color: #a1a1aa; cursor: pointer;
+  padding: 2px 6px; border-radius: 4px; font-size: 13px; flex-shrink: 0;
+}
+.dp-doc-del:hover { color: #ef4444; }
+.dp-empty { font-size: 12px; color: #a1a1aa; font-style: italic; padding: 6px 0; }
+.dp-loading { font-size: 12px; color: #a1a1aa; padding: 6px 0; }
+.dp-upload-btn {
+  width: 100%; padding: 9px; border: 1px dashed #d4d4d8;
+  border-radius: 8px; background: #fafafa; color: #71717a;
+  font-size: 13px; cursor: pointer; text-align: center; margin-top: 10px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.dp-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+.dp-tip { padding: 12px 20px; font-size: 11px; color: #a1a1aa; line-height: 1.5; }
+
+/* Sidebar top row with docs button */
+.sb-top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.sb-top-row .app-label { margin-bottom: 0; }
+#docs-btn {
+  background: none; border: none; cursor: pointer; font-size: 15px;
+  padding: 4px 6px; border-radius: 6px; color: var(--text-muted);
+  transition: color 0.12s, background 0.12s; line-height: 1;
+}
+#docs-btn:hover { color: var(--text-primary); background: var(--sidebar-hover); }
+
+/* Admin link at sidebar bottom */
+#sb-footer { padding: 10px 12px; border-top: 1px solid var(--sidebar-border); flex-shrink: 0; }
+.admin-link {
+  font-size: 12px; color: var(--text-dim); text-decoration: none;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; border-radius: 6px;
+  transition: color 0.12s, background 0.12s;
+}
+.admin-link:hover { color: var(--text-muted); background: var(--sidebar-hover); }
 
 /* Input wrapper */
 #input-wrapper {
@@ -392,7 +479,10 @@ body {
 <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
 <aside id="sidebar">
   <div id="sb-top">
-    <span class="app-label">Clinical RAG</span>
+    <div class="sb-top-row">
+      <span class="app-label">Clinical RAG</span>
+      <button id="docs-btn" title="Documents" onclick="openDocsPanel()">📁</button>
+    </div>
     <button id="new-chat-btn">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -402,6 +492,9 @@ body {
   </div>
   <div id="chat-scroll">
     <div class="chat-list-empty">No chats yet.</div>
+  </div>
+  <div id="sb-footer">
+    <a href="/admin" target="_blank" class="admin-link">🔧 Admin</a>
   </div>
 </aside>
 
@@ -422,7 +515,6 @@ body {
     <div id="messages"></div>
 
     <div id="input-wrapper">
-      <div id="chat-doc-chips"></div>
       <div id="input-box">
         <button id="clip-btn" title="Upload PDF to this chat" disabled>📎</button>
         <textarea id="question-input" rows="1"
@@ -439,8 +531,31 @@ body {
   </div>
 </main>
 
+<!-- Documents panel -->
+<div id="docs-backdrop" onclick="closeDocsPanel()"></div>
+<div id="docs-panel">
+  <div class="dp-header">
+    <span>Documents</span>
+    <button class="dp-close" onclick="closeDocsPanel()">✕</button>
+  </div>
+  <div class="dp-section">
+    <div class="dp-section-title">Knowledge Base</div>
+    <div class="dp-section-sub">Available to all chats</div>
+    <div id="dp-kb-list"><div class="dp-loading">Loading…</div></div>
+    <button class="dp-upload-btn" onclick="document.getElementById('kb-file-input').click()">+ Upload to Knowledge Base</button>
+  </div>
+  <div class="dp-section">
+    <div class="dp-section-title">This Chat</div>
+    <div class="dp-section-sub">Only visible in this session</div>
+    <div id="dp-chat-list"><div class="dp-loading">Loading…</div></div>
+    <button class="dp-upload-btn" onclick="document.getElementById('chat-file-input').click()">+ Upload to this chat</button>
+  </div>
+  <div class="dp-tip">💡 Chat documents are deleted when you delete the chat</div>
+</div>
+
 <!-- Hidden inputs -->
 <input type="file" id="chat-file-input" accept=".pdf" style="display:none" />
+<input type="file" id="kb-file-input" accept=".pdf" style="display:none" />
 
 <script>
 const API_KEY = "dev-key-123";
@@ -458,12 +573,12 @@ const emptyState    = document.getElementById("empty-state");
 const chatView      = document.getElementById("chat-view");
 const chatTitleBar  = document.getElementById("chat-title-bar");
 const messages      = document.getElementById("messages");
-const chatDocChips  = document.getElementById("chat-doc-chips");
 const inputBox      = document.getElementById("input-box");
 const clipBtn       = document.getElementById("clip-btn");
 const questionInput = document.getElementById("question-input");
 const sendBtn       = document.getElementById("send-btn");
 const chatFileInput = document.getElementById("chat-file-input");
+const kbFileInput   = document.getElementById("kb-file-input");
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 (async function init() {
@@ -502,39 +617,29 @@ function renderChatList(chats) {
 // ── Select chat ────────────────────────────────────────────────────────────
 async function selectChat(chatId, title) {
   activeChatId = chatId;
-  // Update highlight in sidebar without full re-render
   document.querySelectorAll(".chat-item").forEach(el => {
     el.classList.toggle("active", el.dataset.id === chatId);
   });
   chatTitleBar.textContent = title || "Chat";
   messages.innerHTML = "";
-  chatDocChips.innerHTML = "";
   showChatView();
   enableInput();
 
-  // Load messages and documents in parallel
-  const [msgRes, docRes] = await Promise.allSettled([
-    fetch(`${BASE}/chats/${chatId}`, { headers: AUTH }),
-    fetch(`${BASE}/chats/${chatId}/documents`, { headers: AUTH }),
-  ]);
-
-  if (msgRes.status === "fulfilled" && msgRes.value.ok) {
-    const data = await msgRes.value.json();
-    chatTitleBar.textContent = data.title || "Chat";
-    data.messages.forEach(m => {
-      if (m.role === "user") appendUserMsg(m.content);
-      else {
-        let srcs = [];
-        try { srcs = JSON.parse(m.sources || "[]"); } catch {}
-        appendBotMsg(m.content, srcs);
-      }
-    });
-  }
-
-  if (docRes.status === "fulfilled" && docRes.value.ok) {
-    const docs = await docRes.value.json();
-    renderDocChips(docs);
-  }
+  try {
+    const r = await fetch(`${BASE}/chats/${chatId}`, { headers: AUTH });
+    if (r.ok) {
+      const data = await r.json();
+      chatTitleBar.textContent = data.title || "Chat";
+      data.messages.forEach(m => {
+        if (m.role === "user") appendUserMsg(m.content);
+        else {
+          let srcs = [];
+          try { srcs = JSON.parse(m.sources || "[]"); } catch {}
+          appendBotMsg(m.content, srcs);
+        }
+      });
+    }
+  } catch {}
 }
 
 // ── New chat ───────────────────────────────────────────────────────────────
@@ -545,7 +650,6 @@ async function createNewChat() {
     const chat = await r.json();
     activeChatId = chat.id;
     messages.innerHTML = "";
-    chatDocChips.innerHTML = "";
     chatTitleBar.textContent = "New chat";
     showChatView();
     enableInput();
@@ -586,53 +690,41 @@ chatFileInput.addEventListener("change", async () => {
   const file = chatFileInput.files[0];
   if (!file || !activeChatId) return;
   chatFileInput.value = "";
-
-  // Show uploading chip immediately
-  const uploading = document.createElement("div");
-  uploading.className = "doc-chip uploading";
-  uploading.innerHTML = `<span class="dc-icon">📄</span> ${esc(file.name)} <span class="dc-count">uploading…</span>`;
-  chatDocChips.appendChild(uploading);
-
   const form = new FormData();
   form.append("file", file);
-
   try {
     const r = await fetch(`${BASE}/chats/${activeChatId}/upload`, {
-      method: "POST",
-      headers: AUTH,
-      body: form,
+      method: "POST", headers: AUTH, body: form,
     });
-    if (!r.ok) {
-      const d = await r.json();
-      throw new Error(d.detail || r.statusText);
-    }
-    uploading.innerHTML = `<span class="dc-icon">📄</span> ${esc(file.name)} <span class="dc-count">indexing…</span>`;
-    // Poll for real chunk counts a few times
+    if (!r.ok) { const d = await r.json(); throw new Error(d.detail || r.statusText); }
     setTimeout(() => refreshChatDocs(activeChatId), 4000);
-    setTimeout(() => refreshChatDocs(activeChatId), 10000);
-    setTimeout(() => refreshChatDocs(activeChatId), 20000);
+    setTimeout(() => refreshChatDocs(activeChatId), 12000);
   } catch (err) {
-    uploading.innerHTML = `<span class="dc-icon">⚠️</span> ${esc(file.name)} <span class="dc-count">${esc(err.message)}</span>`;
+    alert("Upload failed: " + err.message);
+  }
+});
+
+kbFileInput.addEventListener("change", async () => {
+  const file = kbFileInput.files[0];
+  if (!file) return;
+  kbFileInput.value = "";
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const r = await fetch(`${BASE}/upload`, { method: "POST", headers: AUTH, body: form });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.detail || r.statusText); }
+    setTimeout(loadDocsPanelKbSection, 5000);
+    setTimeout(loadDocsPanelKbSection, 15000);
+  } catch (err) {
+    alert("Upload failed: " + err.message);
   }
 });
 
 async function refreshChatDocs(chatId) {
   if (chatId !== activeChatId) return;
-  try {
-    const r = await fetch(`${BASE}/chats/${chatId}/documents`, { headers: AUTH });
-    if (!r.ok) return;
-    const docs = await r.json();
-    renderDocChips(docs);
-  } catch {}
-}
-
-function renderDocChips(docs) {
-  chatDocChips.innerHTML = docs.map(d => `
-    <div class="doc-chip">
-      <span class="dc-icon">📄</span>
-      ${esc(d.source)}
-      <span class="dc-count">· ${d.chunk_count} chunks</span>
-    </div>`).join("");
+  if (document.getElementById("docs-panel").classList.contains("open")) {
+    loadDocsPanelChatSection(chatId);
+  }
 }
 
 // ── Send message ───────────────────────────────────────────────────────────
@@ -719,9 +811,7 @@ function appendUserMsg(text) {
 }
 
 function appendBotMsg(text, sources) {
-  const deduped = dedupSources(sources);
-  const chips = deduped.map(s =>
-    `<div class="chip">📄 ${esc(s.source)} · p.${s.page}</div>`).join("");
+  const chips = buildGroupedChips(sources);
   const row = mkEl("div", "msg-row bot");
   row.innerHTML = `
     <div class="bot-label">Clinical RAG</div>
@@ -729,6 +819,25 @@ function appendBotMsg(text, sources) {
     ${chips ? `<div class="sources">${chips}</div>` : ""}`;
   messages.appendChild(row);
   scrollBottom();
+}
+
+function buildGroupedChips(sources) {
+  if (!sources || !sources.length) return "";
+  const groups = {};
+  for (const s of sources) {
+    if (!groups[s.source]) groups[s.source] = new Set();
+    groups[s.source].add(s.page);
+  }
+  return Object.entries(groups).map(([src, pagesSet]) => {
+    const pages = [...pagesSet].sort((a, b) => a - b);
+    if (pages.length === 1) {
+      return `<div class="chip">📄 ${esc(src)} · p.${pages[0]}</div>`;
+    }
+    return `<div class="chip chip-expandable" onclick="this.classList.toggle('open')">
+      <span>📄 ${esc(src)} · ${pages.length} references <span class="chip-arrow">▾</span></span>
+      <span class="chip-pages">${pages.map(p => "p." + p).join(" · ")}</span>
+    </div>`;
+  }).join("");
 }
 
 function appendStreamingRow() {
@@ -746,9 +855,7 @@ function appendStreamingRow() {
 }
 
 function renderSourcesInto(container, sources) {
-  const deduped = dedupSources(sources);
-  container.innerHTML = deduped.map(s =>
-    `<div class="chip">📄 ${esc(s.source)} · p.${s.page}</div>`).join("");
+  container.innerHTML = buildGroupedChips(sources);
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────
@@ -797,7 +904,88 @@ function relTime(iso) {
   return `${Math.floor(s/86400)}d ago`;
 }
 
-// Periodic refresh
+// ── Documents panel ────────────────────────────────────────────────────────
+function openDocsPanel() {
+  document.getElementById("docs-panel").classList.add("open");
+  document.getElementById("docs-backdrop").classList.add("open");
+  loadDocsPanel();
+}
+
+function closeDocsPanel() {
+  document.getElementById("docs-panel").classList.remove("open");
+  document.getElementById("docs-backdrop").classList.remove("open");
+}
+
+async function loadDocsPanel() {
+  loadDocsPanelKbSection();
+  if (activeChatId) {
+    loadDocsPanelChatSection(activeChatId);
+  } else {
+    document.getElementById("dp-chat-list").innerHTML =
+      '<div class="dp-empty">Select or create a chat to see its documents.</div>';
+  }
+}
+
+async function loadDocsPanelKbSection() {
+  const list = document.getElementById("dp-kb-list");
+  list.innerHTML = '<div class="dp-loading">Loading…</div>';
+  try {
+    const r = await fetch(`${BASE}/admin/documents`, { headers: AUTH });
+    const docs = await r.json();
+    if (!docs.length) {
+      list.innerHTML = '<div class="dp-empty">No documents in knowledge base.</div>';
+      return;
+    }
+    list.innerHTML = docs.map(d => `
+      <div class="dp-doc-item">
+        <div class="dp-doc-name">
+          📄 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.source)}</span>
+          <span class="dp-doc-count">${d.chunk_count} chunks</span>
+        </div>
+        <button class="dp-doc-del" title="Delete" onclick="deleteKbDoc('${esc(d.source)}')">🗑</button>
+      </div>`).join("");
+  } catch {
+    list.innerHTML = '<div class="dp-empty">Failed to load.</div>';
+  }
+}
+
+async function loadDocsPanelChatSection(chatId) {
+  const list = document.getElementById("dp-chat-list");
+  list.innerHTML = '<div class="dp-loading">Loading…</div>';
+  try {
+    const r = await fetch(`${BASE}/chats/${chatId}/documents`, { headers: AUTH });
+    const docs = await r.json();
+    if (!docs.length) {
+      list.innerHTML = '<div class="dp-empty">No documents uploaded to this chat yet.</div>';
+      return;
+    }
+    list.innerHTML = docs.map(d => `
+      <div class="dp-doc-item">
+        <div class="dp-doc-name">
+          📄 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.source)}</span>
+          <span class="dp-doc-count">${d.chunk_count} chunks</span>
+        </div>
+      </div>`).join("");
+  } catch {
+    list.innerHTML = '<div class="dp-empty">Failed to load.</div>';
+  }
+}
+
+async function deleteKbDoc(filename) {
+  if (!confirm(`Delete "${filename}" from the knowledge base? This cannot be undone.`)) return;
+  try {
+    const r = await fetch(
+      `${BASE}/admin/documents?filename=${encodeURIComponent(filename)}`,
+      { method: "DELETE", headers: AUTH }
+    );
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    loadDocsPanelKbSection();
+  } catch (err) {
+    alert("Delete failed: " + err.message);
+  }
+}
+
+// ── Periodic refresh ───────────────────────────────────────────────────────
 setInterval(loadChats, 60000);
 </script>
 </body>
