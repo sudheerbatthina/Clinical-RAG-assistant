@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Clinical RAG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #0f0f10;
+      color: #f4f4f5;
+    }
+
+    #layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ===== LEFT NAV ===== */
+    #nav {
+      width: 200px;
+      flex-shrink: 0;
+      background: #141414;
+      border-right: 1px solid #2a2a2e;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0 16px;
+    }
+
+    .nav-back {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #71717a;
+      text-decoration: none;
+      padding: 0 16px 20px;
+      transition: color 0.15s;
+    }
+
+    .nav-back:hover { color: #a1a1aa; }
+
+    .nav-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #3f3f46;
+      padding: 0 16px 10px;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 9px 16px;
+      font-size: 13px;
+      color: #a1a1aa;
+      cursor: pointer;
+      border: none;
+      background: none;
+      text-align: left;
+      width: 100%;
+      border-left: 2px solid transparent;
+      transition: color 0.12s, background 0.12s, border-color 0.12s;
+    }
+
+    .nav-item:hover { color: #f4f4f5; background: rgba(255,255,255,0.04); }
+
+    .nav-item.active {
+      color: #f4f4f5;
+      border-left-color: #6366f1;
+      background: rgba(99,102,241,0.08);
+    }
+
+    /* ===== CONTENT AREA ===== */
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 40px 48px;
+      max-width: 680px;
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #f4f4f5;
+      margin-bottom: 28px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0;
+      border-bottom: 1px solid #1e1e22;
+      gap: 16px;
+    }
+
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-label {
+      font-size: 14px;
+      color: #f4f4f5;
+    }
+
+    .setting-desc {
+      font-size: 12px;
+      color: #71717a;
+      margin-top: 3px;
+    }
+
+    .setting-control { flex-shrink: 0; }
+
+    /* Pill toggles */
+    .pill {
+      display: flex;
+      background: #1a1a1c;
+      border: 1px solid #2a2a2e;
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .pill button {
+      padding: 5px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 500;
+      color: #71717a;
+      background: none;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .pill button.active {
+      background: #6366f1;
+      color: #fff;
+    }
+
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #3f3f46;
+      border-radius: 11px;
+      transition: background 0.2s;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-track { background: #6366f1; }
+    .toggle-switch input:checked + .toggle-track::after { transform: translateX(18px); }
+
+    /* Slider */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-row input[type=range] {
+      width: 120px;
+      accent-color: #6366f1;
+    }
+
+    .slider-val {
+      font-size: 13px;
+      color: #a1a1aa;
+      min-width: 20px;
+      text-align: right;
+    }
+
+    /* Select */
+    .setting-select {
+      background: #1a1a1c;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #f4f4f5;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Text inputs */
+    .setting-input {
+      width: 240px;
+      padding: 8px 12px;
+      background: #1a1a1c;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #f4f4f5;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .setting-input:focus { border-color: #6366f1; }
+    .setting-input[readonly] { color: #71717a; cursor: default; }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #818cf8; }
+    .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+
+    /* Avatar preview */
+    .avatar-preview {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Role badge */
+    .role-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      text-transform: capitalize;
+    }
+
+    .role-badge.admin { background: rgba(99,102,241,0.18); color: #818cf8; }
+    .role-badge.member { background: rgba(113,113,122,0.18); color: #a1a1aa; }
+
+    /* Info box */
+    .info-box {
+      background: #1a1a1c;
+      border: 1px solid #2a2a2e;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #71717a;
+      line-height: 1.6;
+    }
+
+    /* Password group */
+    .password-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 240px;
+    }
+
+    .success-msg {
+      color: #4ade80;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .error-msg {
+      color: #f87171;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    /* Bottom bar */
+    #bottom-bar {
+      padding: 20px 48px;
+      border-top: 1px solid #1e1e22;
+      font-size: 12px;
+      color: #3f3f46;
+    }
+  </style>
+</head>
+<body>
+
+<div id="layout">
+  <!-- LEFT NAV -->
+  <nav id="nav">
+    <a class="nav-back" href="/">← Back to Clinical RAG</a>
+    <div class="nav-title">Settings</div>
+    <button class="nav-item active" onclick="showSection('general', this)">General</button>
+    <button class="nav-item" onclick="showSection('appearance', this)">Appearance</button>
+    <button class="nav-item" onclick="showSection('profile', this)">Profile</button>
+    <button class="nav-item" onclick="showSection('privacy', this)">Privacy &amp; Data</button>
+    <button class="nav-item" onclick="showSection('security', this)">Security</button>
+  </nav>
+
+  <!-- CONTENT -->
+  <div id="content">
+
+    <!-- GENERAL -->
+    <div class="section active" id="section-general">
+      <div class="section-title">General</div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Default Answer Style</div>
+        </div>
+        <div class="setting-control">
+          <div class="pill" id="style-pill">
+            <button onclick="setPill('style-pill', this, 'answerStyle', 'concise')">Concise</button>
+            <button class="active" onclick="setPill('style-pill', this, 'answerStyle', 'detailed')">Detailed</button>
+            <button onclick="setPill('style-pill', this, 'answerStyle', 'bullets')">Bullets</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Default Mode</div>
+        </div>
+        <div class="setting-control">
+          <div class="pill" id="mode-pill">
+            <button class="active" onclick="setPill('mode-pill', this, 'defaultMode', 'chat')">Chat</button>
+            <button onclick="setPill('mode-pill', this, 'defaultMode', 'research')">Research</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Results to Retrieve (Top K)</div>
+        </div>
+        <div class="setting-control">
+          <div class="slider-row">
+            <input type="range" id="topk-slider" min="3" max="15" value="5"
+              oninput="document.getElementById('topk-val').textContent=this.value; saveSetting('topK', parseInt(this.value))" />
+            <span class="slider-val" id="topk-val">5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Enable Streaming</div>
+          <div class="setting-desc">Stream responses token by token</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-streaming" checked onchange="saveSetting('streaming', this.checked)" />
+            <div class="toggle-track"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Enable Cache</div>
+          <div class="setting-desc">Return cached answers for identical questions</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-cache" checked onchange="saveSetting('cache', this.checked)" />
+            <div class="toggle-track"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Language</div>
+        </div>
+        <div class="setting-control">
+          <select class="setting-select" onchange="saveSetting('language', this.value)">
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPEARANCE -->
+    <div class="section" id="section-appearance">
+      <div class="section-title">Appearance</div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Theme</div>
+        </div>
+        <div class="setting-control">
+          <div class="pill" id="theme-pill">
+            <button onclick="setTheme('light', this)">Light</button>
+            <button onclick="setTheme('dark', this)">Dark</button>
+            <button class="active" onclick="setTheme('system', this)">System</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Font Size</div>
+        </div>
+        <div class="setting-control">
+          <div class="pill" id="fontsize-pill">
+            <button onclick="setPill('fontsize-pill', this, 'fontSize', 'small')">Small</button>
+            <button class="active" onclick="setPill('fontsize-pill', this, 'fontSize', 'medium')">Medium</button>
+            <button onclick="setPill('fontsize-pill', this, 'fontSize', 'large')">Large</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Chat Density</div>
+        </div>
+        <div class="setting-control">
+          <div class="pill" id="density-pill">
+            <button onclick="setPill('density-pill', this, 'density', 'compact')">Compact</button>
+            <button class="active" onclick="setPill('density-pill', this, 'density', 'comfortable')">Comfortable</button>
+            <button onclick="setPill('density-pill', this, 'density', 'spacious')">Spacious</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="section" id="section-profile">
+      <div class="section-title">Profile</div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Avatar</div>
+          <div class="setting-desc">Initials are auto-generated from your name</div>
+        </div>
+        <div class="setting-control">
+          <div class="avatar-preview" id="avatar-preview">U</div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div><div class="setting-label">Display Name</div></div>
+        <div class="setting-control" style="display:flex;gap:8px;align-items:center;">
+          <input class="setting-input" type="text" id="input-name" placeholder="Your name" oninput="updateAvatarPreview(this.value)" />
+          <button class="btn btn-primary" onclick="saveName()">Save</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div><div class="setting-label">Email</div></div>
+        <div class="setting-control">
+          <input class="setting-input" type="email" id="input-email" readonly />
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div><div class="setting-label">Role</div></div>
+        <div class="setting-control">
+          <span class="role-badge member" id="role-badge">member</span>
+        </div>
+      </div>
+
+      <div id="name-success" class="success-msg">✓ Display name updated</div>
+      <div id="name-error" class="error-msg"></div>
+    </div>
+
+    <!-- PRIVACY & DATA -->
+    <div class="section" id="section-privacy">
+      <div class="section-title">Privacy &amp; Data</div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Chat History</div>
+          <div class="setting-desc">Save conversations to the database</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-history" checked onchange="saveSetting('chatHistory', this.checked)" />
+            <div class="toggle-track"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Clear All Chats</div>
+          <div class="setting-desc">Permanently deletes all your conversations</div>
+        </div>
+        <div class="setting-control">
+          <button class="btn btn-danger" onclick="clearAllChats()">Clear All Chats</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Data Retention</div>
+        </div>
+        <div style="flex:1;">
+          <div class="info-box">
+            Query logs are automatically deleted after 7 days. Your conversations are kept until you delete them.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECURITY -->
+    <div class="section" id="section-security">
+      <div class="section-title">Security</div>
+
+      <div class="setting-row" style="align-items:flex-start;">
+        <div><div class="setting-label">Change Password</div></div>
+        <div class="setting-control">
+          <div class="password-group">
+            <input class="setting-input" type="password" id="pw-current" placeholder="Current password" />
+            <input class="setting-input" type="password" id="pw-new" placeholder="New password" />
+            <input class="setting-input" type="password" id="pw-confirm" placeholder="Confirm new password" />
+            <button class="btn btn-primary" onclick="changePassword()" style="width:fit-content;">Update Password</button>
+          </div>
+          <div id="pw-success" class="success-msg">✓ Password updated</div>
+          <div id="pw-error" class="error-msg"></div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Active Sessions</div>
+          <div class="setting-desc" id="session-info">You are currently logged in. Your session expires in 7 days.</div>
+        </div>
+        <div class="setting-control">
+          <button class="btn btn-danger" onclick="logoutAll()">Log out all devices</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottom-bar">Clinical RAG v1.0 · Built with FastAPI + ChromaDB</div>
+
+<script>
+  var BASE = window.location.origin;
+
+  function getToken() { return localStorage.getItem("crag_token") || ""; }
+  function getAuth() { return { "Authorization": "Bearer " + getToken() }; }
+  function getAuthJson() { return { "Authorization": "Bearer " + getToken(), "Content-Type": "application/json" }; }
+
+  function checkAuth() {
+    if (!getToken()) window.location.replace("/login");
+  }
+
+  // ===== SETTINGS STORAGE =====
+  var DEFAULTS = {
+    answerStyle: "detailed",
+    defaultMode: "chat",
+    topK: 5,
+    streaming: true,
+    cache: true,
+    language: "en",
+    theme: "system",
+    fontSize: "medium",
+    density: "comfortable",
+    chatHistory: true,
+  };
+
+  var s = loadSettings();
+
+  function loadSettings() {
+    try {
+      var saved = JSON.parse(localStorage.getItem("crag_settings") || "{}");
+      return Object.assign({}, DEFAULTS, saved);
+    } catch(e) { return Object.assign({}, DEFAULTS); }
+  }
+
+  function saveSetting(key, value) {
+    s[key] = value;
+    localStorage.setItem("crag_settings", JSON.stringify(s));
+  }
+
+  // ===== NAV =====
+  function showSection(id, btn) {
+    document.querySelectorAll(".section").forEach(function(el) { el.classList.remove("active"); });
+    document.querySelectorAll(".nav-item").forEach(function(el) { el.classList.remove("active"); });
+    document.getElementById("section-" + id).classList.add("active");
+    btn.classList.add("active");
+  }
+
+  // ===== PILL HELPER =====
+  function setPill(pillId, btn, settingKey, value) {
+    document.querySelectorAll("#" + pillId + " button").forEach(function(b) { b.classList.remove("active"); });
+    btn.classList.add("active");
+    saveSetting(settingKey, value);
+  }
+
+  // ===== THEME =====
+  function setTheme(theme, btn) {
+    document.querySelectorAll("#theme-pill button").forEach(function(b) { b.classList.remove("active"); });
+    btn.classList.add("active");
+    saveSetting("theme", theme);
+    applyTheme(theme);
+  }
+
+  function applyTheme(theme) {
+    var resolved = theme === "system"
+      ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      : theme;
+    document.body.setAttribute("data-theme", resolved);
+  }
+
+  // ===== AVATAR =====
+  function getInitials(name) {
+    if (!name) return "U";
+    var parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function updateAvatarPreview(name) {
+    document.getElementById("avatar-preview").textContent = getInitials(name);
+  }
+
+  // ===== SAVE NAME =====
+  async function saveName() {
+    var name = document.getElementById("input-name").value.trim();
+    if (!name) return;
+    document.getElementById("name-success").style.display = "none";
+    document.getElementById("name-error").style.display = "none";
+    try {
+      var res = await fetch(BASE + "/auth/profile", {
+        method: "PUT",
+        headers: getAuthJson(),
+        body: JSON.stringify({ display_name: name }),
+      });
+      var data = await res.json();
+      if (!res.ok) { showMsg("name-error", data.detail || "Failed"); return; }
+      // Update localStorage
+      var user = JSON.parse(localStorage.getItem("crag_user") || "{}");
+      user.display_name = name;
+      localStorage.setItem("crag_user", JSON.stringify(user));
+      updateAvatarPreview(name);
+      showMsg("name-success", null);
+    } catch(e) {
+      showMsg("name-error", "Network error.");
+    }
+  }
+
+  // ===== CHANGE PASSWORD =====
+  async function changePassword() {
+    var cur = document.getElementById("pw-current").value;
+    var nw = document.getElementById("pw-new").value;
+    var conf = document.getElementById("pw-confirm").value;
+    document.getElementById("pw-success").style.display = "none";
+    document.getElementById("pw-error").style.display = "none";
+    if (!cur || !nw) { showMsg("pw-error", "Fill in all fields."); return; }
+    if (nw !== conf) { showMsg("pw-error", "Passwords do not match."); return; }
+    try {
+      var res = await fetch(BASE + "/auth/password", {
+        method: "PUT",
+        headers: getAuthJson(),
+        body: JSON.stringify({ current_password: cur, new_password: nw }),
+      });
+      var data = await res.json();
+      if (!res.ok) { showMsg("pw-error", data.detail || "Failed"); return; }
+      document.getElementById("pw-current").value = "";
+      document.getElementById("pw-new").value = "";
+      document.getElementById("pw-confirm").value = "";
+      showMsg("pw-success", null);
+    } catch(e) {
+      showMsg("pw-error", "Network error.");
+    }
+  }
+
+  function showMsg(id, text) {
+    var el = document.getElementById(id);
+    if (text) el.textContent = text;
+    el.style.display = "block";
+    setTimeout(function() { el.style.display = "none"; }, 4000);
+  }
+
+  // ===== CLEAR ALL CHATS =====
+  async function clearAllChats() {
+    if (!confirm("This will permanently delete all your conversations. This action cannot be undone.")) return;
+    try {
+      await fetch(BASE + "/chats/all", { method: "DELETE", headers: getAuth() });
+      window.location.replace("/");
+    } catch(e) {
+      alert("Failed to clear chats.");
+    }
+  }
+
+  // ===== LOG OUT =====
+  function logoutAll() {
+    localStorage.removeItem("crag_token");
+    localStorage.removeItem("crag_user");
+    window.location.replace("/login");
+  }
+
+  // ===== INIT =====
+  function init() {
+    checkAuth();
+
+    // Populate controls from saved settings
+    var sMap = {
+      answerStyle: { pill: "style-pill", values: ["concise","detailed","bullets"] },
+      defaultMode: { pill: "mode-pill", values: ["chat","research"] },
+      theme: { pill: "theme-pill", values: ["light","dark","system"] },
+      fontSize: { pill: "fontsize-pill", values: ["small","medium","large"] },
+      density: { pill: "density-pill", values: ["compact","comfortable","spacious"] },
+    };
+
+    Object.keys(sMap).forEach(function(key) {
+      var cfg = sMap[key];
+      var val = s[key];
+      var btns = document.querySelectorAll("#" + cfg.pill + " button");
+      btns.forEach(function(btn, i) {
+        btn.classList.toggle("active", cfg.values[i] === val);
+      });
+    });
+
+    document.getElementById("topk-slider").value = s.topK;
+    document.getElementById("topk-val").textContent = s.topK;
+    document.getElementById("toggle-streaming").checked = s.streaming;
+    document.getElementById("toggle-cache").checked = s.cache;
+    document.getElementById("toggle-history").checked = s.chatHistory !== false;
+
+    applyTheme(s.theme);
+
+    // Populate profile section from crag_user
+    try {
+      var user = JSON.parse(localStorage.getItem("crag_user") || "{}");
+      var name = user.display_name || user.username || "";
+      document.getElementById("input-name").value = name;
+      document.getElementById("input-email").value = user.email || "";
+      updateAvatarPreview(name);
+      var badge = document.getElementById("role-badge");
+      var role = (user.role || "member").toLowerCase();
+      badge.textContent = role;
+      badge.className = "role-badge " + (role === "admin" ? "admin" : "member");
+    } catch(e) {}
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import random
 import threading
 
 import chromadb
@@ -10,25 +12,33 @@ from fastapi.responses import StreamingResponse, RedirectResponse
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.requests import Request
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from rag_assistant.generator import answer_question, stream_answer, build_context
 from rag_assistant.config import API_KEYS, CHROMA_DIR, COLLECTION_NAME, DATA_DIR, STORAGE_DIR
 from rag_assistant.cache import cache_backend
 from rag_assistant.db import (
-    init_db, create_chat, list_chats, get_chat, delete_chat,
+    init_db, create_chat, list_chats, get_chat, delete_chat, delete_all_chats,
     add_message, get_messages, get_conn,
     save_feedback, save_query_log, purge_old_logs,
-    create_user, get_user_by_username, update_last_login, list_users, get_analytics,
+    create_user, get_user_by_username, get_user_by_email_or_username,
+    get_user_by_id, update_last_login, update_user_display_name,
+    update_user_password, list_users, get_analytics,
 )
 from rag_assistant.retriever import retrieve
 from rag_assistant.query_rewriter import rewrite_query
-from rag_assistant.auth import verify_password, create_token, decode_token
+from rag_assistant.auth import verify_password, hash_password, create_token, decode_token
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Healthcare RAG Assistant")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ.get("SESSION_SECRET", "fallback-dev-secret-only"),
+)
 
 # ---------------------------------------------------------------------------
 # Startup
@@ -59,10 +69,19 @@ def _startup() -> None:
 
     try:
         if not get_user_by_username("admin"):
-            create_user("admin", "admin123", role="admin")
+            create_user("admin", "admin123", display_name="Administrator", role="admin")
             logger.info("Created default admin user (admin/admin123)")
     except Exception as exc:
         logger.warning("Default admin user creation failed: %s", exc)
+
+    try:
+        from rag_assistant.google_oauth import is_google_oauth_configured
+        if is_google_oauth_configured():
+            logger.info("Google OAuth: configured")
+        else:
+            logger.info("Google OAuth: not configured (set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET to enable)")
+    except Exception:
+        pass
 
     try:
         client = chromadb.PersistentClient(path=CHROMA_DIR)
@@ -176,13 +195,13 @@ class FeedbackRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    username: str
+    display_name: str
+    email: str
     password: str
-    email: str | None = None
 
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 
@@ -191,6 +210,16 @@ class CreateUserRequest(BaseModel):
     password: str
     role: str = "member"
     email: str | None = None
+    display_name: str | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: str
+
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 # ---------------------------------------------------------------------------
@@ -202,13 +231,33 @@ def login_page():
     return RedirectResponse(url="/login.html")
 
 
+@app.get("/settings")
+def settings_page():
+    return RedirectResponse(url="/settings.html")
+
+
 @app.post("/auth/register")
 def auth_register(request: RegisterRequest):
+    # Auto-generate username from email
+    base = request.email.split("@")[0].lower().replace(".", "_")
+    suffix = str(random.randint(1000, 9999))
+    username = f"{base}{suffix}"
     try:
-        user = create_user(request.username, request.password,
-                           email=request.email, role="member")
+        user = create_user(
+            username=username,
+            password=request.password,
+            display_name=request.display_name,
+            email=request.email,
+            role="member",
+        )
         token = create_token(user["id"], user["username"], user["role"])
-        return {**user, "token": token}
+        return {
+            "token": token,
+            "user_id": user["id"],
+            "username": user["username"],
+            "display_name": user["display_name"],
+            "role": user["role"],
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -217,22 +266,56 @@ def auth_register(request: RegisterRequest):
 
 @app.post("/auth/login")
 def auth_login(request: LoginRequest):
-    user = get_user_by_username(request.username)
+    user = get_user_by_email_or_username(request.email)
     if not user or not verify_password(request.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     update_last_login(user["id"])
     token = create_token(user["id"], user["username"], user["role"])
     return {
         "token": token,
         "username": user["username"],
+        "display_name": user.get("display_name") or user["username"],
         "role": user["role"],
         "user_id": user["id"],
+        "email": user.get("email"),
     }
 
 
 @app.get("/auth/me")
 def auth_me(user: dict = Depends(_require_auth)):
-    return {k: v for k, v in user.items() if k != "exp"}
+    payload = {k: v for k, v in user.items() if k != "exp"}
+    # Enrich with display_name from DB if we have a real user_id
+    uid = user.get("sub") or user.get("user_id")
+    if uid and uid != "api":
+        db_user = get_user_by_id(uid)
+        if db_user:
+            payload["display_name"] = db_user.get("display_name") or db_user["username"]
+            payload["email"] = db_user.get("email")
+    return payload
+
+
+@app.put("/auth/profile")
+def auth_update_profile(request: UpdateProfileRequest, user: dict = Depends(_require_auth)):
+    uid = user.get("sub") or user.get("user_id")
+    if not uid or uid == "api":
+        raise HTTPException(status_code=400, detail="Profile update requires JWT login")
+    update_user_display_name(uid, request.display_name)
+    db_user = get_user_by_id(uid)
+    return {"display_name": request.display_name, "username": db_user["username"] if db_user else ""}
+
+
+@app.put("/auth/password")
+def auth_update_password(request: UpdatePasswordRequest, user: dict = Depends(_require_auth)):
+    uid = user.get("sub") or user.get("user_id")
+    if not uid or uid == "api":
+        raise HTTPException(status_code=400, detail="Password update requires JWT login")
+    db_user = get_user_by_id(uid)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_password(request.current_password, db_user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    update_user_password(uid, hash_password(request.new_password))
+    return {"success": True}
 
 
 # ---------------------------------------------------------------------------
@@ -240,13 +323,15 @@ def auth_me(user: dict = Depends(_require_auth)):
 # ---------------------------------------------------------------------------
 
 @app.get("/chats", dependencies=[Depends(_require_auth)])
-def get_chats_list():
-    return list_chats()
+def get_chats_list(user: dict = Depends(_require_auth)):
+    uid = user.get("sub") or user.get("user_id")
+    return list_chats(user_id=uid if uid != "api" else None)
 
 
-@app.post("/chats", dependencies=[Depends(_require_auth)])
-def new_chat():
-    return create_chat()
+@app.post("/chats")
+def new_chat(user: dict = Depends(_require_auth)):
+    uid = user.get("sub") or user.get("user_id")
+    return create_chat(user_id=uid if uid != "api" else None)
 
 
 @app.get("/chats/{chat_id}", dependencies=[Depends(_require_auth)])
@@ -255,6 +340,34 @@ def get_chat_detail(chat_id: str):
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     return {**chat, "messages": get_messages(chat_id)}
+
+
+@app.delete("/chats/all")
+def delete_all_user_chats(user: dict = Depends(_require_auth)):
+    uid = user.get("sub") or user.get("user_id")
+    if not uid or uid == "api":
+        raise HTTPException(status_code=400, detail="Requires JWT login")
+    # Gather chat ids before deleting so we can remove vectors
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id FROM chats WHERE user_id=? OR user_id IS NULL", (uid,)
+        ).fetchall()
+    chat_ids = [r[0] for r in rows]
+
+    deleted_chunks = 0
+    try:
+        chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+        collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+        for cid in chat_ids:
+            res = collection.get(where={"session_id": {"$eq": cid}}, include=[])
+            if res["ids"]:
+                collection.delete(ids=res["ids"])
+                deleted_chunks += len(res["ids"])
+    except Exception as e:
+        logger.warning("Could not delete session vectors during delete_all: %s", e)
+
+    deleted_chats = delete_all_chats(uid)
+    return {"deleted_chats": deleted_chats, "deleted_chunks": deleted_chunks}
 
 
 @app.delete("/chats/{chat_id}", dependencies=[Depends(_require_auth)])
@@ -337,8 +450,11 @@ def index():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/upload", dependencies=[Depends(_require_auth)])
-async def upload(file: UploadFile = File(...)):
+@app.post("/upload")
+async def upload(file: UploadFile = File(...), user: dict = Depends(_require_auth)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can upload to the Knowledge Base")
+
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
@@ -369,11 +485,12 @@ async def upload(file: UploadFile = File(...)):
     }
 
 
-@app.post("/query", response_model=QueryResponse, dependencies=[Depends(_require_auth)])
-def query(request: QueryRequest):
+@app.post("/query", response_model=QueryResponse)
+def query(request: QueryRequest, user: dict = Depends(_require_auth)):
     active_chat_id = request.chat_id
     if active_chat_id == "new":
-        chat = create_chat()
+        uid = user.get("sub") or user.get("user_id")
+        chat = create_chat(user_id=uid if uid != "api" else None)
         active_chat_id = chat["id"]
 
     session_id = active_chat_id if active_chat_id else "global"
@@ -430,11 +547,12 @@ def suggest_followups(request: SuggestFollowupsRequest):
     return {"questions": questions[:3]}
 
 
-@app.post("/query/stream", dependencies=[Depends(_require_auth)])
-async def query_stream(request: QueryRequest):
+@app.post("/query/stream")
+async def query_stream(request: QueryRequest, user: dict = Depends(_require_auth)):
     active_chat_id = request.chat_id
     if active_chat_id == "new":
-        chat = create_chat()
+        uid = user.get("sub") or user.get("user_id")
+        chat = create_chat(user_id=uid if uid != "api" else None)
         active_chat_id = chat["id"]
 
     session_id = active_chat_id if active_chat_id else "global"
@@ -780,8 +898,11 @@ def admin_create_user(request: CreateUserRequest, user: dict = Depends(_require_
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     try:
-        return create_user(request.username, request.password,
-                           email=request.email, role=request.role)
+        return create_user(
+            request.username, request.password,
+            display_name=request.display_name,
+            email=request.email, role=request.role,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -791,6 +912,56 @@ def admin_create_user(request: CreateUserRequest, user: dict = Depends(_require_
 @app.get("/health")
 def health():
     return {"status": "ok", "cache_backend": cache_backend()}
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth (stubs, activated when env vars are set)
+# ---------------------------------------------------------------------------
+
+@app.get("/auth/google")
+async def google_auth_start(request: Request):
+    from rag_assistant.google_oauth import is_google_oauth_configured
+    if not is_google_oauth_configured():
+        return {"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars."}
+    try:
+        from rag_assistant.google_oauth import oauth
+        redirect_uri = str(request.url_for("google_auth_callback"))
+        return await oauth.google.authorize_redirect(request, redirect_uri)
+    except Exception as exc:
+        logger.error("Google OAuth redirect error: %s", exc)
+        return {"error": "Google OAuth redirect failed. Ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are valid.", "detail": str(exc)}
+
+
+@app.get("/auth/google/callback", name="google_auth_callback")
+async def google_auth_callback(request: Request):
+    from rag_assistant.google_oauth import oauth, is_google_oauth_configured
+    if not is_google_oauth_configured():
+        return RedirectResponse(url="/login?error=oauth_not_configured")
+    try:
+        token_data = await oauth.google.authorize_access_token(request)
+        user_info = token_data.get("userinfo") or {}
+        email = user_info.get("email")
+        name = user_info.get("name", email)
+        if not email:
+            return RedirectResponse(url="/login?error=oauth_no_email")
+        # Find or create user
+        db_user = get_user_by_email_or_username(email)
+        if not db_user:
+            import secrets
+            db_user = create_user(
+                username=email.split("@")[0] + str(random.randint(1000, 9999)),
+                password=secrets.token_hex(32),
+                display_name=name,
+                email=email,
+                role="member",
+            )
+            db_user = get_user_by_email_or_username(email)
+        update_last_login(db_user["id"])
+        jwt_token = create_token(db_user["id"], db_user["username"], db_user["role"])
+        return RedirectResponse(url=f"/#token={jwt_token}")
+    except Exception as exc:
+        logger.error("Google OAuth callback error: %s", exc)
+        return RedirectResponse(url="/login?error=oauth_error")
 
 
 # ---------------------------------------------------------------------------

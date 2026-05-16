@@ -15,4 +15,6 @@ requests
 rank-bm25
 python-jose[cryptography]
 passlib[bcrypt]
+authlib
+httpx
 en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz

@@ -253,7 +253,13 @@
       align-items: center;
       gap: 8px;
       position: relative;
+      cursor: pointer;
+      border-radius: 8px;
+      margin: 4px 6px;
+      transition: background 0.12s;
     }
+
+    .sidebar-profile:hover { background: var(--sidebar-hover); }
 
     .profile-avatar {
       width: 30px;
@@ -282,74 +288,90 @@
       white-space: nowrap;
     }
 
-    .profile-role {
-      font-size: 11px;
-      color: var(--text-muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .profile-role-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 20px;
+      margin-top: 2px;
+      text-transform: capitalize;
     }
 
-    .profile-menu-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 16px;
-      padding: 2px 4px;
-      border-radius: 4px;
-      transition: background 0.12s;
+    .profile-role-badge.admin {
+      background: rgba(99,102,241,0.18);
+      color: #818cf8;
     }
 
-    .profile-menu-btn:hover {
-      background: var(--sidebar-hover);
+    .profile-role-badge.member {
+      background: rgba(113,113,122,0.18);
+      color: #a1a1aa;
     }
 
+    /* Claude-style profile popup */
     #profile-popover {
       position: absolute;
-      bottom: 100%;
-      left: 8px;
-      width: 200px;
-      background: #1a1a1c;
-      border: 1px solid var(--sidebar-border);
+      bottom: calc(100% + 6px);
+      left: 6px;
+      width: 240px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
       border-radius: 10px;
-      padding: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       z-index: 200;
+      overflow: hidden;
       display: none;
     }
 
-    #profile-popover.open {
-      display: block;
+    #profile-popover.open { display: block; }
+
+    .popover-email {
+      padding: 12px 14px 10px;
+      font-size: 12px;
+      color: #71717a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .popover-divider {
+      height: 1px;
+      background: #2a2a3e;
+      margin: 2px 0;
     }
 
     .popover-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 8px;
-      border-radius: 6px;
-      cursor: pointer;
+      gap: 10px;
+      padding: 8px 14px;
       font-size: 13px;
       color: var(--text-primary);
       background: none;
       border: none;
       width: 100%;
       text-align: left;
+      cursor: pointer;
       transition: background 0.12s;
+      text-decoration: none;
     }
 
-    .popover-item:hover {
-      background: var(--sidebar-hover);
-    }
+    .popover-item:hover { background: rgba(255,255,255,0.06); }
 
-    .popover-footer {
-      font-size: 11px;
-      color: var(--text-dim);
-      padding-top: 6px;
-      border-top: 1px solid var(--sidebar-border);
-      margin-top: 4px;
+    .popover-item .popover-icon {
+      width: 16px;
       text-align: center;
+      flex-shrink: 0;
     }
+
+    .popover-item .popover-arrow {
+      margin-left: auto;
+      font-size: 11px;
+      color: #52525b;
+    }
+
+    .popover-item.danger { color: #f87171; }
+    .popover-item.danger:hover { background: rgba(239,68,68,0.08); }
 
     /* ===== MAIN ===== */
     #main {
@@ -1228,20 +1250,37 @@
 
     <div id="chat-scroll"></div>
 
-    <div style="position:relative;">
+    <div style="position:relative;margin-top:auto;">
+      <!-- Claude-style profile popup -->
       <div id="profile-popover">
-        <button class="popover-item" onclick="openSettingsPanel(); closeProfilePopover()">&#9881;&#65039; Settings</button>
-        <button class="popover-item" onclick="clearAllChats()">&#128465;&#65039; Clear all chats</button>
-        <button class="popover-item" style="color:#ef4444;" onclick="signOut()">&#8594; Sign out</button>
-        <div class="popover-footer">Clinical RAG v1.0</div>
+        <div class="popover-email" id="popover-email">—</div>
+        <div class="popover-divider"></div>
+        <a class="popover-item" href="/settings" onclick="closeProfilePopover()">
+          <span class="popover-icon">⚙️</span> Settings
+          <span class="popover-arrow">↗</span>
+        </a>
+        <button class="popover-item" onclick="closeProfilePopover()">
+          <span class="popover-icon">🌐</span> Language
+        </button>
+        <button class="popover-item" id="popover-help-btn" onclick="closeProfilePopover()">
+          <span class="popover-icon">❓</span> Get help
+        </button>
+        <div class="popover-divider"></div>
+        <button class="popover-item" onclick="closeProfilePopover()">
+          <span class="popover-icon">📱</span> Get apps
+        </button>
+        <div class="popover-divider"></div>
+        <button class="popover-item danger" onclick="signOut()">
+          <span class="popover-icon">🚪</span> Log out
+        </button>
       </div>
-      <div class="sidebar-profile">
+      <!-- Profile row — entire row is clickable -->
+      <div class="sidebar-profile" onclick="toggleProfilePopover()">
         <div class="profile-avatar" id="profile-avatar">U</div>
         <div class="profile-info">
           <div class="profile-name" id="profile-name">User</div>
-          <div class="profile-role" id="profile-role">Member</div>
+          <span class="profile-role-badge member" id="profile-role-badge">member</span>
         </div>
-        <button class="profile-menu-btn" onclick="toggleProfilePopover()">&#183;&#183;&#183;</button>
       </div>
     </div>
 
@@ -1282,7 +1321,7 @@
           <button class="attach-btn" onclick="toggleAttachMenu(event)" title="Attach">+</button>
           <div id="attach-menu" class="attach-menu" style="display:none;">
             <button onclick="triggerChatFileUpload(); closeAttachMenu()">📄 Upload to this chat</button>
-            <button onclick="document.getElementById('kb-file-input').click(); closeAttachMenu()">📚 Add to Knowledge Base</button>
+            <button id="attach-kb-btn" onclick="document.getElementById('kb-file-input').click(); closeAttachMenu()">📚 Add to Knowledge Base</button>
           </div>
         </div>
         <textarea id="question-input" rows="1" placeholder="Ask a question about your documents..."></textarea>
@@ -1315,12 +1354,18 @@
       <button class="panel-close-btn" onclick="closeDocsPanel()">&#10005;</button>
     </div>
     <div class="panel-body" id="docs-panel-body">
-      <div class="panel-section-title">KNOWLEDGE BASE</div>
-      <div id="kb-docs-list"></div>
-      <button class="panel-upload-btn" onclick="document.getElementById('kb-file-input').click()">+ Upload PDF to Knowledge Base</button>
+      <!-- KB section: only shown to admins — toggled in openDocsPanel() -->
+      <div id="kb-docs-section" style="display:none;">
+        <div class="panel-section-title">KNOWLEDGE BASE</div>
+        <div id="kb-docs-list"></div>
+        <button class="panel-upload-btn" onclick="document.getElementById('kb-file-input').click()">+ Upload PDF to Knowledge Base</button>
+      </div>
 
       <div id="session-docs-section" style="display:none;">
         <div class="panel-section-title">THIS CHAT</div>
+        <div id="member-session-note" style="display:none;font-size:12px;color:#71717a;margin-bottom:10px;padding:8px 0;">
+          💡 Files uploaded here are only visible in this chat session and are automatically removed when the chat is deleted.
+        </div>
         <div id="session-docs-list"></div>
         <button class="panel-upload-btn" onclick="document.getElementById('docs-chat-file-input').click()">+ Upload PDF to This Chat</button>
       </div>
@@ -1467,7 +1512,10 @@
     const initials = getInitials(settings.name);
     document.getElementById("profile-avatar").textContent = initials;
     document.getElementById("profile-name").textContent = settings.name;
-    document.getElementById("profile-role").textContent = settings.role;
+    const badge = document.getElementById("profile-role-badge");
+    const role = (settings.role || "member").toLowerCase();
+    badge.textContent = role;
+    badge.className = "profile-role-badge " + (role === "admin" ? "admin" : "member");
   }
 
   function getInitials(name) {
@@ -1521,7 +1569,7 @@
 
   function saveSettings() {
     settings.name = document.getElementById("s-name").value || DEFAULT_SETTINGS.name;
-    settings.role = document.getElementById("s-role").value || DEFAULT_SETTINGS.role;
+    // role is read-only from JWT — don't overwrite from settings panel
     settings.access = document.getElementById("s-access").value;
     settings.topK = parseInt(document.getElementById("s-topk").value, 10);
     settings.streaming = document.getElementById("s-streaming").checked;
@@ -1548,7 +1596,8 @@
   }
 
   // ===== PROFILE POPOVER =====
-  function toggleProfilePopover() {
+  function toggleProfilePopover(e) {
+    if (e) e.stopPropagation();
     document.getElementById("profile-popover").classList.toggle("open");
   }
 
@@ -1558,12 +1607,16 @@
 
   document.addEventListener("click", function(e) {
     var pop = document.getElementById("profile-popover");
-    if (!pop.contains(e.target) && !e.target.closest(".profile-menu-btn")) {
+    if (pop && !pop.contains(e.target) && !e.target.closest(".sidebar-profile")) {
       pop.classList.remove("open");
     }
     if (!e.target.closest(".attach-btn") && !e.target.closest(".attach-menu")) {
       closeAttachMenu();
     }
+  });
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeProfilePopover();
   });
 
   // ===== ATTACH MENU =====
@@ -1582,13 +1635,31 @@
   function openDocsPanel() {
     document.getElementById("docs-panel").classList.add("open");
     document.getElementById("docs-backdrop").classList.add("open");
-    loadKbDocs();
+
+    var isAdmin = _isAdmin();
+    // KB section visibility
+    document.getElementById("kb-docs-section").style.display = isAdmin ? "block" : "none";
+    // Attach menu KB button
+    var kbBtn = document.getElementById("attach-kb-btn");
+    if (kbBtn) kbBtn.style.display = isAdmin ? "" : "none";
+
+    if (isAdmin) loadKbDocs();
+
     if (activeChatId) {
       document.getElementById("session-docs-section").style.display = "block";
+      // Show hint note for non-admins
+      document.getElementById("member-session-note").style.display = isAdmin ? "none" : "block";
       loadSessionDocsPanel();
     } else {
       document.getElementById("session-docs-section").style.display = "none";
     }
+  }
+
+  function _isAdmin() {
+    try {
+      var u = JSON.parse(localStorage.getItem("crag_user") || "{}");
+      return u.role === "admin";
+    } catch(e) { return false; }
   }
 
   function closeDocsPanel() {
@@ -2275,15 +2346,10 @@
   }
 
   async function clearAllChats() {
-    if (!confirm("Clear ALL chats? This cannot be undone.")) return;
+    if (!confirm("This will permanently delete all your conversations. This action cannot be undone.")) return;
     closeProfilePopover();
     try {
-      var res = await fetch(BASE + "/chats", { headers: getAuth() });
-      var chats = await res.json();
-      if (!Array.isArray(chats)) chats = [];
-      for (var i = 0; i < chats.length; i++) {
-        await fetch(BASE + "/chats/" + chats[i].id, { method: "DELETE", headers: getAuth() });
-      }
+      await fetch(BASE + "/chats/all", { method: "DELETE", headers: getAuth() });
       activeChatId = null;
       showEmptyState();
       document.getElementById("session-doc-chips").innerHTML = "";
@@ -2381,11 +2447,22 @@
     // Override with JWT identity — always wins over saved settings
     try {
       var cragUser = JSON.parse(localStorage.getItem("crag_user") || "{}");
-      if (cragUser.username) {
-        settings.name = cragUser.username;
+      if (cragUser.username || cragUser.display_name) {
+        settings.name = cragUser.display_name || cragUser.username;
         settings.role = cragUser.role || "member";
         populateProfileRow();
       }
+      // Populate popup email
+      var emailEl = document.getElementById("popover-email");
+      if (emailEl && cragUser.email) emailEl.textContent = cragUser.email;
+      // Help link → admin panel for admins
+      var helpBtn = document.getElementById("popover-help-btn");
+      if (helpBtn && cragUser.role === "admin") {
+        helpBtn.onclick = function() { window.open("/admin.html", "_blank"); closeProfilePopover(); };
+      }
+      // Gate attach menu KB button
+      var kbBtn = document.getElementById("attach-kb-btn");
+      if (kbBtn) kbBtn.style.display = (cragUser.role === "admin") ? "" : "none";
     } catch(e) {}
     loadChats();
 

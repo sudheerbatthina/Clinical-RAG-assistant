@@ -16,6 +16,7 @@ def init_db():
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS chats (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 title TEXT NOT NULL DEFAULT 'New chat',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -64,21 +65,50 @@ def init_db():
                 email TEXT UNIQUE,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'member',
+                display_name TEXT,
                 created_at TEXT NOT NULL,
                 last_login TEXT
             );
         """)
+    migrate_add_display_name()
+    migrate_add_user_id_to_chats()
 
-def create_chat(title="New chat") -> dict:
+
+def migrate_add_display_name():
+    with get_conn() as conn:
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+        except Exception:
+            pass  # column already exists
+
+
+def migrate_add_user_id_to_chats():
+    with get_conn() as conn:
+        try:
+            conn.execute("ALTER TABLE chats ADD COLUMN user_id TEXT")
+        except Exception:
+            pass  # column already exists
+
+
+def create_chat(title="New chat", user_id: str = None) -> dict:
     now = datetime.utcnow().isoformat()
     chat_id = str(uuid.uuid4())
     with get_conn() as conn:
-        conn.execute("INSERT INTO chats VALUES (?,?,?,?)", (chat_id, title, now, now))
-    return {"id": chat_id, "title": title, "created_at": now}
+        conn.execute(
+            "INSERT INTO chats (id, user_id, title, created_at, updated_at) VALUES (?,?,?,?,?)",
+            (chat_id, user_id, title, now, now),
+        )
+    return {"id": chat_id, "title": title, "created_at": now, "user_id": user_id}
 
-def list_chats() -> list:
+def list_chats(user_id: str = None) -> list:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM chats ORDER BY updated_at DESC").fetchall()
+        if user_id:
+            rows = conn.execute(
+                "SELECT * FROM chats WHERE user_id=? OR user_id IS NULL ORDER BY updated_at DESC",
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM chats ORDER BY updated_at DESC").fetchall()
     return [dict(r) for r in rows]
 
 def get_chat(chat_id: str) -> dict | None:
@@ -89,6 +119,13 @@ def get_chat(chat_id: str) -> dict | None:
 def delete_chat(chat_id: str):
     with get_conn() as conn:
         conn.execute("DELETE FROM chats WHERE id=?", (chat_id,))
+
+def delete_all_chats(user_id: str) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM chats WHERE user_id=? OR user_id IS NULL", (user_id,)
+        )
+    return cur.rowcount
 
 def add_message(chat_id: str, role: str, content: str, sources: str = None) -> dict:
     import json
@@ -133,6 +170,7 @@ def save_query_log(chat_id: str, question: str, rewritten: str,
         )
 
 def create_user(username: str, password: str,
+                display_name: str = None,
                 email: str = None, role: str = "member") -> dict:
     from .auth import hash_password
     now = datetime.utcnow().isoformat()
@@ -140,18 +178,27 @@ def create_user(username: str, password: str,
     with get_conn() as conn:
         try:
             conn.execute(
-                "INSERT INTO users VALUES (?,?,?,?,?,?,?)",
-                (uid, username, email, hash_password(password), role, now, None),
+                "INSERT INTO users (id, username, email, password_hash, role, display_name, created_at, last_login) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (uid, username, email, hash_password(password), role, display_name, now, None),
             )
         except sqlite3.IntegrityError:
-            raise ValueError(f"Username '{username}' already exists")
-    return {"id": uid, "username": username, "role": role}
+            raise ValueError(f"Username or email already exists")
+    return {"id": uid, "username": username, "role": role, "display_name": display_name, "email": email}
 
 
 def get_user_by_username(username: str) -> dict | None:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT * FROM users WHERE username=?", (username,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_user_by_email_or_username(identifier: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE email=? OR username=?", (identifier, identifier)
         ).fetchone()
     return dict(row) if row else None
 
@@ -164,10 +211,34 @@ def update_last_login(user_id: str):
         )
 
 
+def update_user_display_name(user_id: str, display_name: str):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET display_name=? WHERE id=?",
+            (display_name, user_id),
+        )
+
+
+def update_user_password(user_id: str, new_password_hash: str):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (new_password_hash, user_id),
+        )
+
+
+def get_user_by_id(user_id: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def list_users() -> list:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, username, email, role, created_at, last_login "
+            "SELECT id, username, email, role, display_name, created_at, last_login "
             "FROM users ORDER BY created_at DESC"
         ).fetchall()
     return [dict(r) for r in rows]

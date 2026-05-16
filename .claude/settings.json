@@ -8,7 +8,29 @@
       "Bash(git push *)",
       "Bash(python -m venv .venv)",
       "Bash(.venv\\\\Scripts\\\\python.exe -m pip install --upgrade pip)",
-      "Bash(.venv\\\\Scripts\\\\pip.exe install *)"
+      "Bash(.venv\\\\Scripts\\\\pip.exe install *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('api.py'\\).read\\(\\)\\); print\\('api.py OK'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"print\\('done'\\)\")",
+      "Bash(pip install *)",
+      "Bash(Start-Process -NoNewWindow -FilePath \"python\" -ArgumentList \"-m\", \"uvicorn\", \"api:app\", \"--port\", \"8000\" -RedirectStandardOutput \"C:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\uvicorn_out.txt\" -RedirectStandardError \"C:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant\\\\uvicorn_err.txt\")",
+      "Bash(nohup python -m uvicorn api:app --port 8000)",
+      "PowerShell(cd C:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant; Start-Job -ScriptBlock { Set-Location C:\\\\Users\\\\sudhe\\\\projects\\\\rag-assistant; python -m uvicorn api:app --port 8000 2>&1 | Out-File -FilePath \"uvicorn.log\" -Encoding utf8 } | Out-Null; Start-Sleep -Seconds 15; Get-Content uvicorn.log -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/health\")",
+      "PowerShell($r = Invoke-RestMethod -Method POST -Uri \"http://localhost:8000/auth/login\" -Headers @{\"Content-Type\"=\"application/json\"} -Body '{\"username\":\"admin\",\"password\":\"admin123\"}'; $token = $r.token; Write-Host \"Token: $\\($token.Substring\\(0,20\\)\\)...\"; Write-Host \"Role: $\\($r.role\\)\"; Write-Host \"Username: $\\($r.username\\)\"; Write-Host \"user_id: $\\($r.user_id\\)\"; $global:token = $token)",
+      "Bash(python -c \"import bcrypt; print\\(bcrypt.__version__\\)\")",
+      "Bash(curl -s -X GET \"http://localhost:8000/auth/me\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3MjgyNDg5YS03ZjQzLTRmYTktYTMxZC1jYjBjNTgyYzgxYzUiLCJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc5NDg3OTk0fQ.jzjPBUtgqNQCtlhE3enSr6fApyhpk5HjOGAcErvnXX0\" -v)",
+      "Bash(venv/Scripts/pip install *)",
+      "Bash(venv/Scripts/python -c ' *)",
+      "Bash(nohup venv/Scripts/python -m uvicorn api:app --port 8000)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(venv/Scripts/python -c \"import py_compile; py_compile.compile\\('api.py', doraise=True\\); print\\('OK'\\)\")",
+      "Bash(pkill -f \"uvicorn api:app\")",
+      "Bash(curl -s http://localhost:8000/auth/google)",
+      "Bash(pkill -f \"uvicorn\")",
+      "Bash(pkill -f \"api:app\")",
+      "PowerShell(Get-Process | Where-Object {$_.Name -match \"python\"} | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep 2; \\(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue\\) ? \"Port 8000 still in use\" : \"Port 8000 free\")"
     ]
   }
 }
